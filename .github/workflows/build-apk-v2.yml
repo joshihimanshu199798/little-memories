@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Save app pubspec
+        run: cp pubspec.yaml /tmp/little-memories-pubspec.yaml
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -19,6 +21,8 @@ jobs:
           cache: true
       - name: Generate Android project
         run: flutter create --platforms=android --project-name=little_memories .
+      - name: Restore app pubspec
+        run: cp /tmp/little-memories-pubspec.yaml pubspec.yaml
       - name: Use verified source
         run: cp lib/main_fixed.dart lib/main.dart
       - name: Install dependencies
