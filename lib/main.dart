@@ -12,109 +12,36 @@ class LittleMemoriesApp extends StatefulWidget {
   const LittleMemoriesApp({super.key});
   @override State<LittleMemoriesApp> createState() => _LittleMemoriesAppState();
 }
-
 class _LittleMemoriesAppState extends State<LittleMemoriesApp> {
   bool dark = false;
-  @override Widget build(BuildContext context) => MaterialApp(
-    debugShowCheckedModeBanner: false,
-    title: 'Little Memories',
-    themeMode: dark ? ThemeMode.dark : ThemeMode.light,
-    theme: ThemeData(useMaterial3: true, colorSchemeSeed: const Color(0xFFE58A9A), scaffoldBackgroundColor: const Color(0xFFFFFAFC)),
-    darkTheme: ThemeData.dark(useMaterial3: true).copyWith(colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFE58A9A), brightness: Brightness.dark)),
-    home: GalleryShell(onTheme: () => setState(() => dark = !dark)),
-  );
+  @override Widget build(BuildContext context) => MaterialApp(debugShowCheckedModeBanner:false,title:'Little Memories',themeMode:dark?ThemeMode.dark:ThemeMode.light,theme:ThemeData(useMaterial3:true,colorSchemeSeed:const Color(0xFFE58A9A),scaffoldBackgroundColor:const Color(0xFFFFFAFC)),darkTheme:ThemeData.dark(useMaterial3:true).copyWith(colorScheme:ColorScheme.fromSeed(seedColor:const Color(0xFFE58A9A),brightness:Brightness.dark)),home:GalleryShell(onTheme:()=>setState(()=>dark=!dark)));
 }
 
 class Timeline {
-  String id, name, description;
-  List<String> assetIds;
-  Timeline({required this.id, required this.name, this.description = '', List<String>? assetIds}) : assetIds = assetIds ?? [];
-  Map<String,dynamic> toJson() => {'id':id,'name':name,'description':description,'assetIds':assetIds};
-  factory Timeline.fromJson(Map<String,dynamic> j) => Timeline(id:j['id'], name:j['name'], description:j['description'] ?? '', assetIds:List<String>.from(j['assetIds'] ?? []));
+  String id,name,description; List<String> assetIds;
+  Timeline({required this.id,required this.name,this.description='',List<String>? assetIds}):assetIds=assetIds??[];
+  Map<String,dynamic> toJson()=>{'id':id,'name':name,'description':description,'assetIds':assetIds};
+  factory Timeline.fromJson(Map<String,dynamic> j)=>Timeline(id:j['id'],name:j['name'],description:j['description']??'',assetIds:List<String>.from(j['assetIds']??[]));
 }
 
-class GalleryShell extends StatefulWidget {
-  final VoidCallback onTheme;
-  const GalleryShell({super.key, required this.onTheme});
-  @override State<GalleryShell> createState() => _GalleryShellState();
-}
+class GalleryShell extends StatefulWidget { final VoidCallback onTheme; const GalleryShell({super.key,required this.onTheme}); @override State<GalleryShell> createState()=>_GalleryShellState(); }
 class _GalleryShellState extends State<GalleryShell> {
-  int tab = 0, grid = 3;
-  List<AssetEntity> assets = [];
-  List<Timeline> timelines = [];
-  Set<String> favorites = {};
-  Map<String,String> titles = {};
-  Map<String,String> notes = {};
-  bool loading = true, permissionDenied = false;
-
-  @override void initState() { super.initState(); _load(); }
-  Future<void> _load() async {
-    final p = await SharedPreferences.getInstance();
-    grid = p.getInt('grid') ?? 3;
-    favorites = {...?p.getStringList('favorites')};
-    final raw = p.getString('timelines');
-    if (raw != null) timelines = (jsonDecode(raw) as List).map((e) => Timeline.fromJson(e)).toList();
-    final tr = p.getString('titles'); if (tr != null) titles = Map<String,String>.from(jsonDecode(tr));
-    final nr = p.getString('notes'); if (nr != null) notes = Map<String,String>.from(jsonDecode(nr));
-    await _scanGallery();
-  }
-  Future<void> _save() async {
-    final p = await SharedPreferences.getInstance();
-    await p.setInt('grid', grid); await p.setStringList('favorites', favorites.toList());
-    await p.setString('timelines', jsonEncode(timelines.map((e)=>e.toJson()).toList()));
-    await p.setString('titles', jsonEncode(titles)); await p.setString('notes', jsonEncode(notes));
-  }
-  Future<void> _scanGallery() async {
-    final state = await PhotoManager.requestPermissionExtend();
-    if (!state.isAuth) { if (mounted) setState(() { loading=false; permissionDenied=true; }); return; }
-    final paths = await PhotoManager.getAssetPathList(onlyAll: true, type: RequestType.image);
-    if (paths.isEmpty) { if (mounted) setState(() {assets=[];loading=false;}); return; }
-    final list = await paths.first.getAssetListRange(start: 0, end: 100000);
-    if (mounted) setState(() { assets=list; loading=false; permissionDenied=false; });
-  }
-  Future<void> _newTimeline() async {
-    final data = await _timelineDialog(); if (data == null) return;
-    setState(() => timelines.insert(0, Timeline(id: DateTime.now().microsecondsSinceEpoch.toString(), name:data.$1, description:data.$2)));
-    await _save();
-  }
-  Future<void> _editTimeline(Timeline t) async {
-    final data = await _timelineDialog(initialName:t.name, initialDescription:t.description); if (data == null) return;
-    setState(() {t.name=data.$1;t.description=data.$2;}); await _save();
-  }
-  Future<(String,String)?> _timelineDialog({String initialName='',String initialDescription=''}) async {
-    final n=TextEditingController(text:initialName), d=TextEditingController(text:initialDescription);
-    return showDialog<(String,String)>(context:context,builder:(_)=>AlertDialog(title:Text(initialName.isEmpty?'Create timeline':'Edit timeline'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:n,autofocus:true,decoration:const InputDecoration(labelText:'Timeline name',hintText:'Sarthak — 1st Birthday')),TextField(controller:d,decoration:const InputDecoration(labelText:'Description (optional)'))]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(context,(n.text.trim().isEmpty?'Untitled':n.text.trim(),d.text.trim())),child:const Text('Save'))]));
-  }
-  Future<void> _pickForTimeline(Timeline t) async {
-    final chosen=<String>{...t.assetIds};
-    await showModalBottomSheet(context:context,isScrollControlled:true,builder:(_)=>StatefulBuilder(builder:(context,ss)=>DraggableScrollableSheet(expand:false,initialChildSize:.9,builder:(_,sc)=>Column(children:[Padding(padding:const EdgeInsets.all(16),child:Row(children:[Expanded(child:Text('Add photos to ${t.name}',style:const TextStyle(fontSize:20,fontWeight:FontWeight.bold))),Text('${chosen.length} selected')])),Expanded(child:GridView.builder(controller:sc,padding:const EdgeInsets.all(10),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:grid,crossAxisSpacing:6,mainAxisSpacing:6),itemCount:assets.length,itemBuilder:(_,i){final a=assets[i], selected=chosen.contains(a.id);return FutureBuilder<Widget>(future:_thumb(a,selected),builder:(_,s)=>GestureDetector(onTap:(){ss((){selected?chosen.remove(a.id):chosen.add(a.id);});},child:s.data ?? const ColoredBox(color:Colors.black12)));})),Padding(padding:const EdgeInsets.all(12),child:FilledButton.icon(onPressed:(){Navigator.pop(context);setState((){t.assetIds=chosen.toList();});_save();},icon:const Icon(Icons.check),label:const Text('Add selected photos')))]))));
-  }
+  int tab=0,grid=3; List<AssetEntity> assets=[]; List<Timeline> timelines=[]; Set<String> favorites={}; Map<String,String> titles={},notes={}; bool loading=true,permissionDenied=false;
+  @override void initState(){super.initState();_load();}
+  Future<void> _load() async {final p=await SharedPreferences.getInstance();grid=p.getInt('grid')??3;favorites={...?p.getStringList('favorites')};final raw=p.getString('timelines');if(raw!=null)timelines=(jsonDecode(raw) as List).map((e)=>Timeline.fromJson(e)).toList();final tr=p.getString('titles');if(tr!=null)titles=Map<String,String>.from(jsonDecode(tr));final nr=p.getString('notes');if(nr!=null)notes=Map<String,String>.from(jsonDecode(nr));await _scanGallery();}
+  Future<void> _save() async {final p=await SharedPreferences.getInstance();await p.setInt('grid',grid);await p.setStringList('favorites',favorites.toList());await p.setString('timelines',jsonEncode(timelines.map((e)=>e.toJson()).toList()));await p.setString('titles',jsonEncode(titles));await p.setString('notes',jsonEncode(notes));}
+  Future<void> _scanGallery() async {final state=await PhotoManager.requestPermissionExtend();if(!state.isAuth){if(mounted)setState((){loading=false;permissionDenied=true;});return;}final paths=await PhotoManager.getAssetPathList(onlyAll:true,type:RequestType.image);if(paths.isEmpty){if(mounted)setState((){assets=[];loading=false;});return;}final list=await paths.first.getAssetListRange(start:0,end:100000);if(mounted)setState((){assets=list;loading=false;permissionDenied=false;});}
+  Future<void> _newTimeline() async {final data=await _timelineDialog();if(data==null)return;setState(()=>timelines.insert(0,Timeline(id:DateTime.now().microsecondsSinceEpoch.toString(),name:data.$1,description:data.$2)));await _save();}
+  Future<void> _editTimeline(Timeline t) async {final data=await _timelineDialog(initialName:t.name,initialDescription:t.description);if(data==null)return;setState((){t.name=data.$1;t.description=data.$2;});await _save();}
+  Future<(String,String)?> _timelineDialog({String initialName='',String initialDescription=''}) async {final n=TextEditingController(text:initialName),d=TextEditingController(text:initialDescription);return showDialog<(String,String)>(context:context,builder:(_)=>AlertDialog(title:Text(initialName.isEmpty?'Create timeline':'Edit timeline'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:n,autofocus:true,decoration:const InputDecoration(labelText:'Timeline name',hintText:'Sarthak — 1st Birthday')),TextField(controller:d,decoration:const InputDecoration(labelText:'Description (optional)'))]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(context,(n.text.trim().isEmpty?'Untitled':n.text.trim(),d.text.trim())),child:const Text('Save'))]));}
+  Future<void> _pickForTimeline(Timeline t) async {final chosen=<String>{...t.assetIds};await showModalBottomSheet(context:context,isScrollControlled:true,builder:(_)=>StatefulBuilder(builder:(context,ss)=>DraggableScrollableSheet(expand:false,initialChildSize:.9,builder:(_,sc)=>Column(children:[Padding(padding:const EdgeInsets.all(16),child:Row(children:[Expanded(child:Text('Add photos to ${t.name}',style:const TextStyle(fontSize:20,fontWeight:FontWeight.bold))),Text('${chosen.length} selected')])),Expanded(child:GridView.builder(controller:sc,padding:const EdgeInsets.all(10),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:grid,crossAxisSpacing:6,mainAxisSpacing:6),itemCount:assets.length,itemBuilder:(_,i){final a=assets[i],selected=chosen.contains(a.id);return FutureBuilder<Widget>(future:_thumb(a,selected),builder:(_,s)=>GestureDetector(onTap:(){ss((){selected?chosen.remove(a.id):chosen.add(a.id);});},child:s.data??const ColoredBox(color:Colors.black12)));})),Padding(padding:const EdgeInsets.all(12),child:FilledButton.icon(onPressed:(){Navigator.pop(context);setState(()=>t.assetIds=chosen.toList());_save();},icon:const Icon(Icons.check),label:const Text('Add selected photos')))]))));}
   Future<Widget> _thumb(AssetEntity a,bool selected) async {final data=await a.thumbnailDataWithSize(const ThumbnailSize(360,360));return Stack(fit:StackFit.expand,children:[Image.memory(data!,fit:BoxFit.cover),if(selected)Container(color:Colors.black38,child:const Center(child:Icon(Icons.check_circle,color:Colors.white,size:34)))]);}
-  Future<void> _photoDetails(AssetEntity a) async {
-    final title=TextEditingController(text:titles[a.id] ?? ''), note=TextEditingController(text:notes[a.id] ?? '');
-    await showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('Edit photo'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:title,decoration:const InputDecoration(labelText:'Photo name')),TextField(controller:note,decoration:const InputDecoration(labelText:'Caption / note'))]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancel')),FilledButton(onPressed:(){setState((){titles[a.id]=title.text.trim();notes[a.id]=note.text.trim();});_save();Navigator.pop(context);},child:const Text('Save'))]));
-  }
-  Future<void> _shareTimeline(Timeline t) async {
-    final files=<XFile>[]; for(final id in t.assetIds){final a=assets.where((x)=>x.id==id).firstOrNull; if(a!=null){final f=await a.file; if(f!=null) files.add(XFile(f.path));}}
-    final text='${t.name}\n${t.description}\nShared from Little Memories';
-    if(files.isNotEmpty) await Share.shareXFiles(files, text:text); else await Share.share(text);
-  }
-  Future<void> _collab(Timeline t) async {
-    final invite='Little Memories collaboration invite\nTimeline: ${t.name}\nInvite ID: ${t.id}\nOpen Little Memories and enter this Invite ID to join.';
-    await Share.share(invite);
-    if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Invite shared. Real-time cross-device collaboration needs a cloud workspace connection.')));
-  }
-  @override Widget build(BuildContext context) {
-    if(permissionDenied) return Scaffold(appBar:AppBar(title:const Text('Little Memories')),body:Center(child:Padding(padding:const EdgeInsets.all(24),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.photo_library_outlined,size:70),const SizedBox(height:12),const Text('Photo access is needed to show your existing phone gallery.',textAlign:TextAlign.center),const SizedBox(height:16),FilledButton(onPressed:PhotoManager.openSetting,child:const Text('Open photo permissions'))]))));
-    return Scaffold(appBar:AppBar(title:Text(['Gallery','Timelines','Favorites','More'][tab],style:const TextStyle(fontWeight:FontWeight.w800)),actions:[if(tab==0)IconButton(onPressed:_scanGallery,icon:const Icon(Icons.refresh)),IconButton(onPressed:widget.onTheme,icon:const Icon(Icons.dark_mode_outlined))]),floatingActionButton:tab==1?FloatingActionButton.extended(onPressed:_newTimeline,icon:const Icon(Icons.add),label:const Text('Timeline')):null,body:loading?const Center(child:CircularProgressIndicator()):_body(),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(i)=>setState(()=>tab=i),destinations:const[NavigationDestination(icon:Icon(Icons.photo_library_outlined),selectedIcon:Icon(Icons.photo_library),label:'Gallery'),NavigationDestination(icon:Icon(Icons.timeline),label:'Timelines'),NavigationDestination(icon:Icon(Icons.favorite_border),selectedIcon:Icon(Icons.favorite),label:'Favorites'),NavigationDestination(icon:Icon(Icons.more_horiz),label:'More')]);
-  }
+  Future<void> _photoDetails(AssetEntity a) async {final title=TextEditingController(text:titles[a.id]??''),note=TextEditingController(text:notes[a.id]??'');await showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('Edit photo'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:title,decoration:const InputDecoration(labelText:'Photo name')),TextField(controller:note,decoration:const InputDecoration(labelText:'Caption / note'))]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancel')),FilledButton(onPressed:(){setState((){titles[a.id]=title.text.trim();notes[a.id]=note.text.trim();});_save();Navigator.pop(context);},child:const Text('Save'))]));}
+  Future<void> _shareTimeline(Timeline t) async {final files=<XFile>[];for(final id in t.assetIds){final a=assets.where((x)=>x.id==id).firstOrNull;if(a!=null){final f=await a.file;if(f!=null)files.add(XFile(f.path));}}final text='${t.name}\n${t.description}\nShared from Little Memories';if(files.isNotEmpty)await Share.shareXFiles(files,text:text);else await Share.share(text);}
+  Future<void> _collab(Timeline t) async {final invite='Little Memories collaboration invite\nTimeline: ${t.name}\nInvite ID: ${t.id}\nOpen Little Memories and enter this Invite ID to join.';await Share.share(invite);if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Invite shared. Real-time cross-device collaboration needs a cloud workspace connection.')));}
+  @override Widget build(BuildContext context){if(permissionDenied)return Scaffold(appBar:AppBar(title:const Text('Little Memories')),body:Center(child:Padding(padding:const EdgeInsets.all(24),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.photo_library_outlined,size:70),const SizedBox(height:12),const Text('Photo access is needed to show your existing phone gallery.',textAlign:TextAlign.center),const SizedBox(height:16),FilledButton(onPressed:()=>PhotoManager.openSetting(),child:const Text('Open photo permissions'))]))));return Scaffold(appBar:AppBar(title:Text(['Gallery','Timelines','Favorites','More'][tab],style:const TextStyle(fontWeight:FontWeight.w800)),actions:[if(tab==0)IconButton(onPressed:_scanGallery,icon:const Icon(Icons.refresh)),IconButton(onPressed:widget.onTheme,icon:const Icon(Icons.dark_mode_outlined))]),floatingActionButton:tab==1?FloatingActionButton.extended(onPressed:_newTimeline,icon:const Icon(Icons.add),label:const Text('Timeline')):null,body:loading?const Center(child:CircularProgressIndicator()):_body(),bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(i)=>setState(()=>tab=i),destinations:const[NavigationDestination(icon:Icon(Icons.photo_library_outlined),selectedIcon:Icon(Icons.photo_library),label:'Gallery'),NavigationDestination(icon:Icon(Icons.timeline),label:'Timelines'),NavigationDestination(icon:Icon(Icons.favorite_border),selectedIcon:Icon(Icons.favorite),label:'Favorites'),NavigationDestination(icon:Icon(Icons.more_horiz),label:'More')]);}
   Widget _body(){if(tab==0)return _gallery(assets);if(tab==2)return _gallery(assets.where((a)=>favorites.contains(a.id)).toList());if(tab==1)return ListView(padding:const EdgeInsets.all(14),children:[...timelines.map(_timelineCard),if(timelines.isEmpty)const Padding(padding:EdgeInsets.all(40),child:Center(child:Text('Create your first timeline — birthdays, first steps, trips and everyday magic.')))]);return ListView(children:[ListTile(leading:const Icon(Icons.grid_view),title:const Text('Grid size'),subtitle:Slider(value:grid.toDouble(),min:2,max:6,divisions:4,label:'$grid columns',onChanged:(v){setState(()=>grid=v.round());_save();}),trailing:Text('$grid×')),ListTile(leading:const Icon(Icons.security_outlined),title:const Text('Privacy first'),subtitle:const Text('Photos stay on your device unless you explicitly share them.')),ListTile(leading:const Icon(Icons.people_outline),title:const Text('Collaboration'),subtitle:const Text('Invite family to a timeline; cloud sync can be enabled for real-time collaboration.'))]);}
-  Widget _gallery(List<AssetEntity> list)=>GridView.builder(padding:const EdgeInsets.all(8),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:grid,crossAxisSpacing:6,mainAxisSpacing:6),itemCount:list.length,itemBuilder:(_,i){final a=list[i];return GestureDetector(onTap:()=>_photoDetails(a),child:FutureBuilder<Widget>(future:_thumb(a,favorites.contains(a.id)),builder:(_,s)=>s.data??const ColoredBox(color:Colors.black12)));});
+  Widget _gallery(List<AssetEntity> list)=>GridView.builder(padding:const EdgeInsets.all(8),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:grid,crossAxisSpacing:6,mainAxisSpacing:6),itemCount:list.length,itemBuilder:(_,i){final a=list[i];return GestureDetector(onTap:()=>_photoDetails(a),child:FutureBuilder<Widget>(future:_thumb(a,favorites.contains(a.id)),builder:(_,s)=>s.data??const ColoredBox(color:Colors.black12)));});}
   Widget _timelineCard(Timeline t){final cover=t.assetIds.isNotEmpty?assets.where((a)=>a.id==t.assetIds.first).firstOrNull:null;return Card(child:ListTile(leading:cover==null?const CircleAvatar(child:Icon(Icons.timeline)):FutureBuilder<Widget>(future:_thumb(cover,false),builder:(_,s)=>SizedBox(width:58,height:58,child:ClipRRect(borderRadius:BorderRadius.circular(12),child:s.data??const ColoredBox(color:Colors.black12)))),title:Text(t.name,style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text('${t.assetIds.length} photos${t.description.isEmpty?'':' • ${t.description}'}'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>TimelinePage(t:t,assets:assets,grid:grid,onAdd:()=>_pickForTimeline(t),onEdit:()=>_editTimeline(t),onShare:()=>_shareTimeline(t),onCollab:()=>_collab(t),onPhotoEdit:_photoDetails))),trailing:PopupMenuButton<String>(onSelected:(v){if(v=='edit')_editTimeline(t);if(v=='add')_pickForTimeline(t);if(v=='share')_shareTimeline(t);if(v=='collab')_collab(t);if(v=='delete'){setState(()=>timelines.remove(t));_save();}},itemBuilder:(_)=>const[PopupMenuItem(value:'add',child:Text('Add photos')),PopupMenuItem(value:'edit',child:Text('Rename / edit')),PopupMenuItem(value:'share',child:Text('Share')),PopupMenuItem(value:'collab',child:Text('Collaborate')),PopupMenuItem(value:'delete',child:Text('Delete timeline'))]));}
 }
-
-class TimelinePage extends StatelessWidget {
-  final Timeline t; final List<AssetEntity> assets; final int grid; final VoidCallback onAdd,onEdit,onShare,onCollab; final Future<void> Function(AssetEntity) onPhotoEdit;
-  const TimelinePage({super.key,required this.t,required this.assets,required this.grid,required this.onAdd,required this.onEdit,required this.onShare,required this.onCollab,required this.onPhotoEdit});
-  @override Widget build(BuildContext context){final list=t.assetIds.map((id)=>assets.where((a)=>a.id==id).firstOrNull).whereType<AssetEntity>().toList();return Scaffold(appBar:AppBar(title:Text(t.name),actions:[IconButton(onPressed:onCollab,icon:const Icon(Icons.group_add_outlined)),IconButton(onPressed:onShare,icon:const Icon(Icons.share_outlined)),IconButton(onPressed:onEdit,icon:const Icon(Icons.edit_outlined))]),floatingActionButton:FloatingActionButton.extended(onPressed:onAdd,icon:const Icon(Icons.add_photo_alternate_outlined),label:const Text('Add photos')),body:list.isEmpty?const Center(child:Text('No photos yet. Add memories from your phone gallery.')):GridView.builder(padding:const EdgeInsets.all(8),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:grid,crossAxisSpacing:6,mainAxisSpacing:6),itemCount:list.length,itemBuilder:(_,i){final a=list[i];return GestureDetector(onTap:()=>onPhotoEdit(a),child:FutureBuilder<Uint8List?>(future:a.thumbnailDataWithSize(const ThumbnailSize(500,500)),builder:(_,s)=>ClipRRect(borderRadius:BorderRadius.circular(10),child:s.data==null?const ColoredBox(color:Colors.black12):Image.memory(s.data!,fit:BoxFit.cover))));});}
-}
+class TimelinePage extends StatelessWidget {final Timeline t;final List<AssetEntity> assets;final int grid;final VoidCallback onAdd,onEdit,onShare,onCollab;final Future<void> Function(AssetEntity) onPhotoEdit;const TimelinePage({super.key,required this.t,required this.assets,required this.grid,required this.onAdd,required this.onEdit,required this.onShare,required this.onCollab,required this.onPhotoEdit});@override Widget build(BuildContext context){final list=t.assetIds.map((id)=>assets.where((a)=>a.id==id).firstOrNull).whereType<AssetEntity>().toList();return Scaffold(appBar:AppBar(title:Text(t.name),actions:[IconButton(onPressed:onCollab,icon:const Icon(Icons.group_add_outlined)),IconButton(onPressed:onShare,icon:const Icon(Icons.share_outlined)),IconButton(onPressed:onEdit,icon:const Icon(Icons.edit_outlined))]),floatingActionButton:FloatingActionButton.extended(onPressed:onAdd,icon:const Icon(Icons.add_photo_alternate_outlined),label:const Text('Add photos')),body:list.isEmpty?const Center(child:Text('No photos yet. Add memories from your phone gallery.')):GridView.builder(padding:const EdgeInsets.all(8),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:grid,crossAxisSpacing:6,mainAxisSpacing:6),itemCount:list.length,itemBuilder:(_,i){final a=list[i];return GestureDetector(onTap:()=>onPhotoEdit(a),child:FutureBuilder<Uint8List?>(future:a.thumbnailDataWithSize(const ThumbnailSize(500,500)),builder:(_,s)=>ClipRRect(borderRadius:BorderRadius.circular(10),child:s.data==null?const ColoredBox(color:Colors.black12):Image.memory(s.data!,fit:BoxFit.cover))));});}}
