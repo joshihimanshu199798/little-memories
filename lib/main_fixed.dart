@@ -46,7 +46,7 @@ class Home extends StatefulWidget {
 }
 class _HomeState extends State<Home> {
   int tab = 0, grid = 3;
-  bool loading = true;
+  bool loading = true, permissionDenied = false;
   List<AssetEntity> photos = [];
   List<Timeline> timelines = [];
   Set<String> favorites = {};
@@ -58,7 +58,7 @@ class _HomeState extends State<Home> {
     final p = await SharedPreferences.getInstance();
     final permission = await PhotoManager.requestPermissionExtend();
     if (!permission.isAuth && !permission.hasAccess) {
-      setState(() => loading = false);
+      if (mounted) setState(() { permissionDenied = true; loading = false; });
       return;
     }
     await _refreshPhotos();
@@ -72,9 +72,33 @@ class _HomeState extends State<Home> {
   }
 
   Future<void> _refreshPhotos() async {
-    final paths = await PhotoManager.getAssetPathList(type: RequestType.common, onlyAll: true);
-    if (paths.isNotEmpty) photos = await paths.first.getAssetListPaged(page: 0, size: 1000);
+    final paths = await PhotoManager.getAssetPathList(type: RequestType.image, onlyAll: true);
+    if (paths.isNotEmpty) {
+      final all = <AssetEntity>[];
+      var page = 0;
+      const pageSize = 200;
+      while (true) {
+        final batch = await paths.first.getAssetListPaged(page: page, size: pageSize);
+        if (batch.isEmpty) break;
+        all.addAll(batch);
+        if (batch.length < pageSize) break;
+        page++;
+      }
+      photos = all;
+    }
     if (mounted) setState(() {});
+  }
+
+  Future<void> _requestPhotos() async {
+    setState(() => loading = true);
+    final permission = await PhotoManager.requestPermissionExtend();
+    if (!permission.isAuth && !permission.hasAccess) {
+      setState(() { permissionDenied = true; loading = false; });
+      return;
+    }
+    permissionDenied = false;
+    await _refreshPhotos();
+    if (mounted) setState(() => loading = false);
   }
 
   Future<void> _save() async {
@@ -244,6 +268,25 @@ class _HomeState extends State<Home> {
 
   @override Widget build(BuildContext context) {
     if (loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (permissionDenied) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Little Memories')),
+        body: Center(child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.photo_library_outlined, size: 82),
+            const SizedBox(height: 18),
+            const Text('Allow access to your photos', textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 10),
+            const Text('Little Memories does not upload your photos. It needs photo-library permission so your existing phone gallery can appear here.',
+              textAlign: TextAlign.center),
+            const SizedBox(height: 22),
+            FilledButton.icon(onPressed: _requestPhotos, icon: const Icon(Icons.photo_library), label: const Text('Allow photos')),
+          ]),
+        )),
+      );
+    }
     final body = tab == 0 ? _gallery() : tab == 1 ? _timelines() : tab == 2 ? _gallery(onlyFavorites: true) : SettingsPage(
       grid: grid, dark: Theme.of(context).brightness == Brightness.dark,
       onGrid: (v) { setState(() => grid = v); _save(); },
