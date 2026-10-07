@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:math';
+import 'dart:async';
 import 'package:crypto/crypto.dart';
 import 'package:image/image.dart' as img;
 import 'package:flutter/material.dart';
@@ -290,6 +291,8 @@ class _HomeState extends State<Home> {
   bool galleryNewestFirst = true;
   bool galleryShowNames = false;
   bool loading = true, permissionDenied = false;
+  bool videosLoaded = false;
+  bool backgroundSyncing = false;
   List<AssetEntity> photos = [];
   List<AssetPathEntity> deviceAlbums = [];
   List<AssetPathEntity> deviceVideoAlbums = [];
@@ -312,14 +315,11 @@ class _HomeState extends State<Home> {
   @override void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
+    // Startup is intentionally split into a fast first screen and background indexing.
+    // The old flow scanned the entire photo and video library before showing Home.
     final p = await SharedPreferences.getInstance();
-    final permission = await PhotoManager.requestPermissionExtend();
-    if (!permission.isAuth && !permission.hasAccess) {
-      if (mounted) setState(() { permissionDenied = true; loading = false; });
-      return;
-    }
-    await _refreshPhotos();
-    await _refreshVideos();
+
+    // Load user state first so the UI can be configured immediately.
     final raw = p.getString('timelines');
     if (raw != null) timelines = (jsonDecode(raw) as List).map((e) => Timeline.fromJson(e)).toList();
     favorites = (p.getStringList('favorites') ?? const []).toSet();
@@ -328,24 +328,107 @@ class _HomeState extends State<Home> {
     backupHistory = p.getStringList('backupHistory') ?? [];
     hiddenIds = (p.getStringList('hiddenIds') ?? const []).toSet();
     final tagsRaw = p.getString('photoTags');
-    if (tagsRaw != null) { final decoded = jsonDecode(tagsRaw) as Map; photoTags = decoded.map((k,v)=>MapEntry(k.toString(), Set<String>.from(v as List))); }
+    if (tagsRaw != null) {
+      final decoded = jsonDecode(tagsRaw) as Map;
+      photoTags = decoded.map((k,v) => MapEntry(k.toString(), Set<String>.from(v as List)));
+    }
     galleryFilter = p.getInt('galleryFilter') ?? 0;
     grid = p.getInt('grid') ?? 3;
     albumGrid = p.getInt('albumGrid') ?? 3;
     exploreGrid = p.getInt('exploreGrid') ?? 3;
     childName = p.getString('childName') ?? 'My Little Star';
     childBirthday = p.getString('childBirthday') ?? '';
-    final albumRaw=p.getString('memoryAlbums');
-    if(albumRaw!=null){final decoded=jsonDecode(albumRaw) as Map;memoryAlbums=decoded.map((k,v)=>MapEntry(k,List<String>.from(v)));}
-    if (mounted) setState(() => loading = false);
+    final albumRaw = p.getString('memoryAlbums');
+    if (albumRaw != null) {
+      final decoded = jsonDecode(albumRaw) as Map;
+      memoryAlbums = decoded.map((k,v) => MapEntry(k, List<String>.from(v)));
+    }
+
+    final permission = await PhotoManager.requestPermissionExtend();
+    if (!permission.isAuth && !permission.hasAccess) {
+      if (mounted) setState(() { permissionDenied = true; loading = false; });
+      return;
+    }
+
+    // Only load the first page for the first paint. photo_manager's paged API is lazy,
+    // so we don't need to walk thousands of assets before showing the gallery.
+    await _loadFirstPhotosPage();
+    if (!mounted) return;
+    setState(() => loading = false);
+
+    // Complete indexing after Home is already usable.
+    unawaited(_finishBackgroundIndex());
+  }
+
+  Future<void> _loadFirstPhotosPage() async {
+    try {
+      final paths = await PhotoManager.getAssetPathList(type: RequestType.image, onlyAll: false, hasAll: true);
+      final usable = <AssetPathEntity>[];
+      final deleted = <AssetPathEntity>[];
+      for (final p in paths) {
+        final n = p.name.toLowerCase();
+        if (n.contains('recently deleted') || n.contains('trash') || n.contains('recycle bin') || n == 'bin' || n.contains('recently removed')) {
+          deleted.add(p);
+        } else {
+          usable.add(p);
+        }
+      }
+      deviceAlbums = usable;
+      deviceDeletedAlbums = deleted;
+      final all = usable.where((p) => p.isAll).toList();
+      if (all.isNotEmpty) {
+        photos = await all.first.getAssetListPaged(page: 0, size: 80);
+      } else if (usable.isNotEmpty) {
+        final first = await usable.first.getAssetListPaged(page: 0, size: 80);
+        photos = first;
+      } else {
+        photos = [];
+      }
+    } catch (_) {
+      photos = [];
+    }
+  }
+
+  Future<void> _finishBackgroundIndex() async {
+    if (backgroundSyncing) return;
+    backgroundSyncing = true;
+    try {
+      // Full image indexing happens after the first frame and never blocks startup.
+      await _refreshPhotos();
+      if (mounted) setState(() {});
+    } catch (_) {}
+    backgroundSyncing = false;
   }
 
   Future<void> _refreshVideos() async {
+    if (videosLoaded) return;
     try {
-      final paths=await PhotoManager.getAssetPathList(type:RequestType.video,onlyAll:false,hasAll:true);deviceVideoAlbums=paths;final all=paths.where((p)=>p.isAll).toList();final sources=all.isEmpty?paths:all;final out=<AssetEntity>[];final seen=<String>{};
-      for(final p in sources){var page=0;while(true){final batch=await p.getAssetListPaged(page:page,size:200);if(batch.isEmpty)break;for(final a in batch){if(seen.add(a.id))out.add(a);}if(batch.length<200)break;page++;}}
-      out.sort((a,b)=>b.createDateTime.compareTo(a.createDateTime));videos=out;
-    }catch(_){videos=[];deviceVideoAlbums=[];}if(mounted)setState((){});
+      final paths = await PhotoManager.getAssetPathList(type: RequestType.video, onlyAll: false, hasAll: true);
+      deviceVideoAlbums = paths;
+      final all = paths.where((p) => p.isAll).toList();
+      final sources = all.isEmpty ? paths.take(3).toList() : all;
+      final out = <AssetEntity>[];
+      final seen = <String>{};
+      for (final p in sources) {
+        var page = 0;
+        while (true) {
+          final batch = await p.getAssetListPaged(page: page, size: 200);
+          if (batch.isEmpty) break;
+          for (final a in batch) {
+            if (seen.add(a.id)) out.add(a);
+          }
+          if (batch.length < 200) break;
+          page++;
+        }
+      }
+      out.sort((a,b) => b.createDateTime.compareTo(a.createDateTime));
+      videos = out;
+      videosLoaded = true;
+    } catch (_) {
+      videos = [];
+      deviceVideoAlbums = [];
+    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _refreshPhotos() async {
@@ -1675,7 +1758,12 @@ class _HomeState extends State<Home> {
       bottomNavigationBar: selectionMode
           ? null
           : NavigationBar(
-        selectedIndex: tab, onDestinationSelected: (v) => setState(() { tab = v; if (v == 0) showAllPhotos = false; }),
+        selectedIndex: tab,
+        onDestinationSelected: (v) {
+          setState(() { tab = v; if (v == 0) showAllPhotos = false; });
+          // Videos are indexed only when the Albums workspace is actually opened.
+          if (v == 1) unawaited(_refreshVideos());
+        },
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
           NavigationDestination(icon: Icon(Icons.collections_bookmark_outlined), selectedIcon: Icon(Icons.collections_bookmark), label: 'Albums'),
@@ -2249,7 +2337,7 @@ class _ThumbState extends State<Thumb> {
   }
 
   void _load() {
-    _future = widget.asset.thumbnailDataWithSize(const ThumbnailSize(800, 800));
+    _future = widget.asset.thumbnailDataWithSize(const ThumbnailSize(320, 320));
   }
 
   @override
