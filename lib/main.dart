@@ -1290,7 +1290,33 @@ class _HomeState extends State<Home> {
 
           Row(children:[Expanded(child:_specialAlbumCard(icon:Icons.photo_library_rounded,title:'All Photos',subtitle:photos.length.toString()+' photos',onTap:()=>setState(()=>tab=0))),const SizedBox(width:10),Expanded(child:_specialAlbumCard(icon:Icons.video_library_rounded,title:'Videos',subtitle:videos.length.toString()+' videos',onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>VideoAlbumPage(assets:videos,grid:albumGrid)))))]),
           const SizedBox(height: 10),
-          Row(children:[Expanded(child:_specialAlbumCard(icon:Icons.lock_rounded,title:'Hidden',subtitle:hiddenIds.length.toString()+' private',onTap:_showHiddenMemories)),const SizedBox(width:10),Expanded(child:_specialAlbumCard(icon:Icons.description_rounded,title:'Documents',subtitle:'PDF, Word, Excel, PPT, text & more',onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const DocumentsPage()))))]),const SizedBox(height:10),_specialAlbumCard(icon:Icons.delete_sweep_rounded,title:'Recently Deleted',subtitle:deviceDeletedAlbums.isEmpty?'Not exposed by Android':'System trash • open to view',onTap:deviceDeletedAlbums.isEmpty?()=>_showDeletedInfo():()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>DeviceAlbumPage(paths:deviceDeletedAlbums,title:'Recently Deleted',grid:albumGrid,hiddenIds:const {},onEdit:_openPhotoEditor,onShare:(a)=>_share([a],'Shared from Little Memories'),onToggleFavorite:(a)async{},onToggleHidden:(a)async{}))))),
+          Row(children:[
+            Expanded(child:_specialAlbumCard(icon:Icons.lock_rounded,title:'Hidden',subtitle:hiddenIds.length.toString()+' private',onTap:_showHiddenMemories)),
+            const SizedBox(width:10),
+            Expanded(child:_specialAlbumCard(icon:Icons.description_rounded,title:'Documents',subtitle:'PDF, Word, Excel, PPT, text & more',onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const DocumentsPage())))),
+          ]),
+          const SizedBox(height:10),
+          _specialAlbumCard(
+            icon: Icons.delete_sweep_rounded,
+            title: 'Recently Deleted',
+            subtitle: deviceDeletedAlbums.isEmpty ? 'Not exposed by Android' : 'System trash • open to view',
+            onTap: () {
+              if (deviceDeletedAlbums.isEmpty) {
+                _showDeletedInfo();
+              } else {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => DeviceAlbumPage(
+                  paths: deviceDeletedAlbums,
+                  title: 'Recently Deleted',
+                  grid: albumGrid,
+                  hiddenIds: const {},
+                  onEdit: _openPhotoEditor,
+                  onShare: (a) => _share([a], 'Shared from Little Memories'),
+                  onToggleFavorite: (a) async {},
+                  onToggleHidden: (a) async {},
+                )));
+              }
+            },
+          ),
 
           if (custom.isNotEmpty) ...[
             const SizedBox(height: 28),
