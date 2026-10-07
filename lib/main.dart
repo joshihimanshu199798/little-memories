@@ -494,6 +494,46 @@ class _HomeState extends State<Home> {
     if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(count.toString()+' photos added to '+album)));
   }
 
+  Future<void> _addPhotosToAlbum(String albumName) async {
+    final chosen=<String>{...(memoryAlbums[albumName]??[])};
+    await showModalBottomSheet(
+      context:context,isScrollControlled:true,showDragHandle:true,
+      builder:(_)=>StatefulBuilder(builder:(context,setSheet)=>SafeArea(child:SizedBox(
+        height:MediaQuery.of(context).size.height*.86,
+        child:Column(children:[
+          ListTile(
+            title:Text('Add photos to '+albumName,style:const TextStyle(fontWeight:FontWeight.w900)),
+            subtitle:Text(chosen.length.toString()+' selected'),
+            trailing:FilledButton(onPressed:()async{
+              setState(()=>memoryAlbums[albumName]=chosen.toList());
+              await _save();
+              if(context.mounted)Navigator.pop(context);
+            },child:const Text('Done')),
+          ),
+          Expanded(child:GridView.builder(
+            padding:const EdgeInsets.all(8),
+            gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:3,crossAxisSpacing:5,mainAxisSpacing:5),
+            itemCount:photos.length,
+            itemBuilder:(_,i){
+              final a=photos[i],picked=chosen.contains(a.id);
+              return GestureDetector(
+                onTap:()=>setSheet(()=>picked?chosen.remove(a.id):chosen.add(a.id)),
+                child:Stack(fit:StackFit.expand,children:[
+                  ClipRRect(borderRadius:BorderRadius.circular(10),child:Thumb(a)),
+                  if(picked)Positioned.fill(child:Container(
+                    decoration:BoxDecoration(color:Theme.of(context).colorScheme.primary.withValues(alpha:.30),borderRadius:BorderRadius.circular(10),border:Border.all(color:Theme.of(context).colorScheme.primary,width:3)),
+                    child:const Align(alignment:Alignment.topRight,child:Padding(padding:EdgeInsets.all(5),child:CircleAvatar(radius:13,child:Icon(Icons.check,size:16)))),
+                  )),
+                ]),
+              );
+            },
+          )),
+        ]),
+      ))),
+    );
+    if(mounted)setState((){});
+  }
+
   Future<void> _openCustomAlbum(String albumName) async {
     final ids=memoryAlbums[albumName]??[];
     final assets=ids.map(_find).whereType<AssetEntity>().toList();
@@ -507,6 +547,7 @@ class _HomeState extends State<Home> {
           memoryAlbums.forEach((k,v)=>v.remove(asset.id));
         });await _save();}
       },
+      onAddPhotos:()=>_addPhotosToAlbum(albumName),
     )));
     if(mounted)setState((){});
   }
@@ -1209,6 +1250,7 @@ class _HomeState extends State<Home> {
           Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 4), child: Row(children: [
             Expanded(child: Text(photos.length.toString() + ' memories', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600))),
             IconButton(tooltip: galleryNewestFirst ? 'Showing newest first' : 'Showing oldest first', onPressed: () => setState(() => galleryNewestFirst = !galleryNewestFirst), icon: Icon(galleryNewestFirst ? Icons.south_rounded : Icons.north_rounded)),
+            IconButton(tooltip:'Select multiple photos',onPressed:()=>setState((){selectionMode=true;selectedIds.clear();}),icon:const Icon(Icons.checklist_rounded)),
             IconButton(tooltip: galleryShowNames ? 'Hide names' : 'Show names', onPressed: () => setState(() => galleryShowNames = !galleryShowNames), icon: Icon(galleryShowNames ? Icons.text_fields : Icons.text_fields_outlined)),
             PopupMenuButton<int>(tooltip: 'Grid size', initialValue: grid, onSelected: (v) => setState(() => grid = v), itemBuilder: (_) => [2,3,4,5,6].map((v) => PopupMenuItem(value: v, child: Text('$v columns'))).toList(), child: const Icon(Icons.grid_view_rounded)),
           ])),
@@ -1294,10 +1336,11 @@ class _HomeState extends State<Home> {
 }
 
 
-class MemoryAlbumPage extends StatefulWidget {
+class MemoryAlbumPage extends StatefulWidget{
   final String name; final List<AssetEntity> photos; final int grid;
   final Future<void> Function(AssetEntity) onRemove; final Future<void> Function(AssetEntity) onDelete;
-  const MemoryAlbumPage({super.key,required this.name,required this.photos,required this.grid,required this.onRemove,required this.onDelete});
+  final VoidCallback? onAddPhotos;
+  const MemoryAlbumPage({super.key,required this.name,required this.photos,required this.grid,required this.onRemove,required this.onDelete,this.onAddPhotos});
   @override State<MemoryAlbumPage> createState()=>_MemoryAlbumPageState();
 }
 class _MemoryAlbumPageState extends State<MemoryAlbumPage>{
@@ -1307,7 +1350,7 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage>{
     if(selected.isEmpty)return;
     final ids=selected.toSet();
     for(final a in widget.photos.where((x)=>ids.contains(x.id)))await widget.onRemove(a);
-    if(mounted)setState(()=>selected.clear());
+    if(mounted)setState((){selected.clear();selecting=false;});
   }
   Future<void> deleteSelected() async {
     if(selected.isEmpty)return;
@@ -1319,7 +1362,7 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage>{
     if(!ok)return;
     final ids=selected.toSet();
     for(final a in widget.photos.where((x)=>ids.contains(x.id)))await widget.onDelete(a);
-    if(mounted)setState(()=>selected.clear());
+    if(mounted)setState((){selected.clear();selecting=false;});
   }
   @override Widget build(BuildContext context){
     return Scaffold(
@@ -1328,29 +1371,39 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage>{
         actions:selecting?[
           IconButton(onPressed:removeSelected,tooltip:'Remove from album',icon:const Icon(Icons.remove_circle_outline)),
           IconButton(onPressed:deleteSelected,tooltip:'Delete photos',icon:const Icon(Icons.delete_outline)),
-          IconButton(onPressed:()=>setState(()=>{selected.clear();selecting=false}),icon:const Icon(Icons.close)),
+          IconButton(onPressed:()=>setState((){selected.clear();selecting=false;}),icon:const Icon(Icons.close)),
         ]:[
+          if(widget.onAddPhotos!=null)IconButton(onPressed:widget.onAddPhotos,tooltip:'Add photos',icon:const Icon(Icons.add_photo_alternate_outlined)),
           IconButton(onPressed:()=>setState(()=>selecting=true),tooltip:'Select photos',icon:const Icon(Icons.checklist_rounded)),
         ],
       ),
       body:widget.photos.isEmpty
-        ? Center(child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.photo_album_outlined,size:70),const SizedBox(height:12),const Text('This album is empty',style:TextStyle(fontSize:20,fontWeight:FontWeight.w800))]))
-        : GridView.builder(
+        ? Center(child:Column(mainAxisSize:MainAxisSize.min,children:[
+            const Icon(Icons.photo_album_outlined,size:70),const SizedBox(height:12),
+            const Text('This album is empty',style:TextStyle(fontSize:20,fontWeight:FontWeight.w800)),
+            const SizedBox(height:12),
+            if(widget.onAddPhotos!=null)FilledButton.icon(onPressed:widget.onAddPhotos,icon:const Icon(Icons.add_photo_alternate),label:const Text('Add photos')),
+          ]))
+        :GridView.builder(
           padding:const EdgeInsets.all(8),
           gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:widget.grid,crossAxisSpacing:6,mainAxisSpacing:6),
           itemCount:widget.photos.length,
           itemBuilder:(_,i){
             final a=widget.photos[i],is=selected.contains(a.id);
             return GestureDetector(
-              onTap:()=>selecting?toggle(a):Navigator.push(context,MaterialPageRoute(builder:(_)=>Viewer(asset:a,all:widget.photos,onEdit:(_)=>Future.value(),onShare:(_)=>Future.value()))),
-              onLongPress:()=>setState(()=>{selecting=true;toggle(a)}),
+              onTap:()=>selecting?toggle(a):Navigator.push(context,MaterialPageRoute(builder:(_)=>Viewer(asset:a,all:widget.photos,onEdit:(_)=>Future.value(),onShare:(_)=>Future.value())),
+              onLongPress:()=>setState((){selecting=true;toggle(a);}),
               child:Stack(fit:StackFit.expand,children:[
                 ClipRRect(borderRadius:BorderRadius.circular(10),child:Thumb(a)),
-                if(is)Positioned.fill(child:Container(decoration:BoxDecoration(color:Theme.of(context).colorScheme.primary.withValues(alpha:.26),border:Border.all(color:Theme.of(context).colorScheme.primary,width:3),borderRadius:BorderRadius.circular(12)),child:const Align(alignment:Alignment.topRight,child:Padding(padding:EdgeInsets.all(6),child:CircleAvatar(radius:13,child:Icon(Icons.check,size:16)))))),
+                if(is)Positioned.fill(child:Container(
+                  decoration:BoxDecoration(color:Theme.of(context).colorScheme.primary.withValues(alpha:.26),border:Border.all(color:Theme.of(context).colorScheme.primary,width:3),borderRadius:BorderRadius.circular(12)),
+                  child:const Align(alignment:Alignment.topRight,child:Padding(padding:EdgeInsets.all(6),child:CircleAvatar(radius:13,child:Icon(Icons.check,size:16)))),
+                )),
               ]),
             );
           },
         ),
+      floatingActionButton:selecting||widget.onAddPhotos==null?null:FloatingActionButton.extended(onPressed:widget.onAddPhotos,icon:const Icon(Icons.add_photo_alternate_outlined),label:const Text('Add photos')),
     );
   }
 }
