@@ -721,6 +721,99 @@ class _HomeState extends State<Home> {
     setState(() {});
   }
 
+  Future<void> _deleteSinglePhoto(AssetEntity a) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete photo?'),
+        content: const Text('This photo will be moved to the phone gallery trash/recently deleted area when supported by Android.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+        ],
+      ),
+    ) ?? false;
+    if (!ok) return;
+    try {
+      final deleted = await PhotoManager.editor.deleteWithIds([a.id]);
+      if (!mounted) return;
+      if (deleted.contains(a.id)) {
+        setState(() {
+          favorites.remove(a.id);
+          hiddenIds.remove(a.id);
+          names.remove(a.id);
+          captions.remove(a.id);
+          memoryAlbums.forEach((_, v) => v.remove(a.id));
+        });
+        await _save();
+        await _refreshPhotos();
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Photo deleted.')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not delete photo: ' + e.toString())));
+    }
+  }
+
+  Future<void> _showPhotoActions(AssetEntity a, List<AssetEntity> list) async {
+    final liked = favorites.contains(a.id);
+    final hidden = hiddenIds.contains(a.id);
+    await showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 2, 18, 14),
+              child: Row(children: [
+                ClipRRect(borderRadius: BorderRadius.circular(12), child: SizedBox(width: 64, height: 64, child: Thumb(a))),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(
+                    (names[a.id] ?? a.title ?? 'Photo').trim().isEmpty ? 'Photo' : (names[a.id] ?? a.title ?? 'Photo'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    a.createDateTime.day.toString() + ' ' + _monthName(a.createDateTime.month) + ' ' + a.createDateTime.year.toString(),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ])),
+              ]),
+            ),
+            ListTile(leading: const Icon(Icons.open_in_full_rounded), title: const Text('Open photo'), onTap: () { Navigator.pop(context); _openPhoto(a, list); }),
+            ListTile(
+              leading: Icon(liked ? Icons.favorite : Icons.favorite_border),
+              title: Text(liked ? 'Remove from favorites' : 'Add to favorites'),
+              onTap: () async {
+                Navigator.pop(context);
+                setState(() { liked ? favorites.remove(a.id) : favorites.add(a.id); });
+                await _save();
+              },
+            ),
+            ListTile(leading: const Icon(Icons.tune_rounded), title: const Text('Edit photo'), onTap: () { Navigator.pop(context); _openPhotoEditor(a); }),
+            ListTile(leading: const Icon(Icons.share_rounded), title: const Text('Share photo'), onTap: () { Navigator.pop(context); _share([a], 'Shared from Little Memories'); }),
+            ListTile(
+              leading: Icon(hidden ? Icons.visibility_rounded : Icons.visibility_off_rounded),
+              title: Text(hidden ? 'Unhide photo' : 'Hide photo'),
+              onTap: () async {
+                Navigator.pop(context);
+                setState(() { hidden ? hiddenIds.remove(a.id) : hiddenIds.add(a.id); });
+                await _save();
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(hidden ? 'Photo restored from Hidden.' : 'Photo moved to Hidden.')));
+              },
+            ),
+            ListTile(leading: const Icon(Icons.delete_outline_rounded), title: const Text('Delete photo'), onTap: () { Navigator.pop(context); _deleteSinglePhoto(a); }),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _openPhoto(AssetEntity a, List<AssetEntity> list) => Navigator.push(context,
     MaterialPageRoute(builder: (_) => CinematicViewer(
       asset: a,
@@ -944,10 +1037,25 @@ class _HomeState extends State<Home> {
           IconButton(tooltip: 'Select photos', onPressed: () => setState(() => selectionMode = true), icon: const Icon(Icons.checklist_rounded)),
           PopupMenuButton<int>(
             tooltip: 'Grid density',
-            initialValue: grid,
+            initialValue: grid.clamp(2, 8),
             onSelected: (v) async { setState(() => grid = v); await _save(); },
-            itemBuilder: (_) => [2,3,4,5,6,7,8].map((v) => PopupMenuItem(value: v, child: Text(v.toString() + ' columns'))).toList(),
-            child: const Icon(Icons.grid_4x4_rounded),
+            itemBuilder: (_) => [2,3,4,5,6,7,8].map((v) => PopupMenuItem(
+              value: v,
+              child: Row(children: [
+                Icon(v == grid ? Icons.check_rounded : Icons.grid_4x4_rounded, size: 19),
+                const SizedBox(width: 10),
+                Text(v.toString() + ' columns'),
+              ]),
+            )).toList(),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(14)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.grid_4x4_rounded, size: 20),
+                const SizedBox(width: 5),
+                Text(grid.toString() + '×', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+              ]),
+            ),
           ),
           IconButton(tooltip: 'Refresh', onPressed: _refreshPhotos, icon: const Icon(Icons.refresh_rounded)),
         ]),
@@ -1170,7 +1278,16 @@ class _HomeState extends State<Home> {
               subtitle: deviceDeletedAlbums.isEmpty ? 'Not exposed by Android' : 'System trash • open to view',
               onTap: deviceDeletedAlbums.isEmpty
                   ? () => _showDeletedInfo()
-                  : () => Navigator.push(context, MaterialPageRoute(builder: (_) => DeviceAlbumPage(paths: deviceDeletedAlbums, title: 'Recently Deleted', grid: grid, hiddenIds: const {}))),
+                  : () => Navigator.push(context, MaterialPageRoute(builder: (_) => DeviceAlbumPage(
+                    paths: deviceDeletedAlbums,
+                    title: 'Recently Deleted',
+                    grid: grid,
+                    hiddenIds: const {},
+                    onEdit: _openPhotoEditor,
+                    onShare: (a) => _share([a], 'Shared from Little Memories'),
+                    onToggleFavorite: (a) async {},
+                    onToggleHidden: (a) async {},
+                  ))),
             )),
           ]),
 
@@ -1253,7 +1370,28 @@ class _HomeState extends State<Home> {
           builder: (_, countState) {
             final count = countState.data;
             return SizedBox(width: ((MediaQuery.of(context).size.width - 48) / 2).clamp(145.0, 220.0), height: 170, child: Card(clipBehavior: Clip.antiAlias, child: InkWell(
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DeviceAlbumPage(paths: [path], title: path.name, grid: grid, hiddenIds: hiddenIds))),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DeviceAlbumPage(
+                paths: [path],
+                title: path.name,
+                grid: grid,
+                hiddenIds: hiddenIds,
+                onEdit: _openPhotoEditor,
+                onShare: (a) => _share([a], 'Shared from Little Memories'),
+                onToggleFavorite: (a) async {
+                  if (!mounted) return;
+                  setState(() {
+                    if (favorites.contains(a.id)) { favorites.remove(a.id); } else { favorites.add(a.id); }
+                  });
+                  await _save();
+                },
+                onToggleHidden: (a) async {
+                  if (!mounted) return;
+                  setState(() {
+                    if (hiddenIds.contains(a.id)) { hiddenIds.remove(a.id); } else { hiddenIds.add(a.id); }
+                  });
+                  await _save();
+                },
+              ))),
               child: Stack(fit: StackFit.expand, children: [
                 cover == null ? Container(color: cs.surfaceContainerHighest, child: Icon(Icons.folder_rounded, size: 48, color: cs.primary)) : Thumb(cover),
                 DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black.withValues(alpha: .84)]))),
@@ -1318,7 +1456,7 @@ class _HomeState extends State<Home> {
         final a = source[i], fav = favorites.contains(a.id);
         return GestureDetector(
           onTap: () => selectionMode ? _toggleSelection(a) : _openPhoto(a, source),
-          onLongPress: () => _toggleSelection(a),
+          onLongPress: () => selectionMode ? _toggleSelection(a) : _showPhotoActions(a, source),
           child: Stack(fit: StackFit.expand, children: [
             ClipRRect(borderRadius: BorderRadius.circular(9), child: Thumb(a)),
             if (galleryShowNames && grid <= 3) Positioned(left: 6, right: 6, bottom: 6, child: Text(names[a.id] ?? a.title ?? 'Memory', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, shadows: [Shadow(blurRadius: 6)]))),
@@ -1484,7 +1622,11 @@ class _HomeState extends State<Home> {
               ]
             : [IconButton(onPressed: _refreshPhotos, icon: const Icon(Icons.refresh))],
       ),
-      body: body,
+      body: SafeArea(
+        top: tab == 0,
+        bottom: false,
+        child: body,
+      ),
       floatingActionButton: tab == 0 && !selectionMode ? FloatingActionButton(
         tooltip: 'Memory tools',
         onPressed: () => showModalBottomSheet(
@@ -1524,7 +1666,21 @@ class DeviceAlbumPage extends StatefulWidget {
   final String title;
   final int grid;
   final Set<String> hiddenIds;
-  const DeviceAlbumPage({super.key, required this.paths, required this.title, required this.grid, required this.hiddenIds});
+  final Future<void> Function(AssetEntity) onEdit;
+  final Future<void> Function(AssetEntity) onShare;
+  final Future<void> Function(AssetEntity) onToggleFavorite;
+  final Future<void> Function(AssetEntity) onToggleHidden;
+  const DeviceAlbumPage({
+    super.key,
+    required this.paths,
+    required this.title,
+    required this.grid,
+    required this.hiddenIds,
+    required this.onEdit,
+    required this.onShare,
+    required this.onToggleFavorite,
+    required this.onToggleHidden,
+  });
   @override State<DeviceAlbumPage> createState() => _DeviceAlbumPageState();
 }
 
@@ -1572,9 +1728,28 @@ class _DeviceAlbumPageState extends State<DeviceAlbumPage> {
               itemCount: visible.length,
               itemBuilder: (_, i) => GestureDetector(
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CinematicViewer(
-                  asset: visible[i], all: visible,
-                  onEdit: (_) async {}, onShare: (_) async {},
+                  asset: visible[i],
+                  all: visible,
+                  onEdit: widget.onEdit,
+                  onShare: widget.onShare,
+                  onToggleFavorite: widget.onToggleFavorite,
                 ))),
+                onLongPress: () => showModalBottomSheet(
+                  context: context,
+                  showDragHandle: true,
+                  builder: (_) => SafeArea(child: Wrap(children: [
+                    ListTile(leading: const Icon(Icons.open_in_full_rounded), title: const Text('Open photo'), onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => CinematicViewer(
+                        asset: visible[i], all: visible, onEdit: widget.onEdit, onShare: widget.onShare,
+                        onToggleFavorite: widget.onToggleFavorite,
+                      )));
+                    }),
+                    ListTile(leading: const Icon(Icons.tune_rounded), title: const Text('Edit photo'), onTap: () { Navigator.pop(context); widget.onEdit(visible[i]); }),
+                    ListTile(leading: const Icon(Icons.share_rounded), title: const Text('Share photo'), onTap: () { Navigator.pop(context); widget.onShare(visible[i]); }),
+                    ListTile(leading: const Icon(Icons.visibility_off_rounded), title: const Text('Hide photo'), onTap: () { Navigator.pop(context); widget.onToggleHidden(visible[i]); }),
+                  ])),
+                ),
                 child: ClipRRect(borderRadius: BorderRadius.circular(6), child: Thumb(visible[i])),
               ),
             ),
