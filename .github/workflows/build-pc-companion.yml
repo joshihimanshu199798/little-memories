@@ -1,0 +1,25 @@
+name: Build Windows PC Companion
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "pc_companion/**"
+      - ".github/workflows/build-pc-companion.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build EXE
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pyinstaller --onefile --windowed --name LittleMemoriesPC pc_companion/little_memories_pc.py
+      - name: Upload Windows app
+        uses: actions/upload-artifact@v4
+        with:
+          name: LittleMemoriesPC-Windows
+          path: dist/LittleMemoriesPC.exe
