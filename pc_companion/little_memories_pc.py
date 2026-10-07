@@ -37,6 +37,7 @@ class Companion(tk.Tk):
         self.discovery_job = None
         self.discovery_running = False
         self.discovery_watch = tk.BooleanVar(value=False)
+        self.auto_backup_on_connect = tk.BooleanVar(value=False)
 
         root = ttk.Frame(self, padding=20)
         root.pack(fill="both", expand=True)
@@ -98,6 +99,7 @@ class Companion(tk.Tk):
             state="readonly",
         ).pack(side="left")
         ttk.Label(auto_row, text="minutes").pack(side="left", padx=(6, 0))
+        ttk.Checkbutton(auto_row, text="Backup immediately when phone is discovered", variable=self.auto_backup_on_connect).pack(side="left", padx=(18, 0))
 
         ttk.Progressbar(root, variable=self.progress, maximum=100).pack(fill="x", pady=8)
         ttk.Label(root, textvariable=self.status, wraplength=760).pack(anchor="w")
@@ -244,7 +246,9 @@ class Companion(tk.Tk):
         ip, port, pair = found
         self.url.set(f"http://{ip}:{port}/?pair={urllib.parse.quote(pair, safe='')}")
         self.write(f"Phone discovered automatically at {ip}:{port}.")
-        self.test(quiet=False)
+        if self.test(quiet=silent) and silent and self.auto_backup_on_connect.get():
+            self.write("Phone connected — automatic backup starting now.")
+            self.after(100, lambda: self.backup(automatic=True))
 
     def _discovery_error(self, error, silent=False):
         self.discovery_running = False
