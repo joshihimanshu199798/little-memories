@@ -219,22 +219,21 @@ load();
 }
 
 class ComicTheme {
-  final String name;
-  final String subtitle;
-  final Color seed;
-  final Color background;
-  final Color surface;
+  final String name, subtitle, fontFamily;
+  final Color seed, background, surface;
   final double radius;
   final int style;
-  const ComicTheme(this.name,this.subtitle,this.seed,this.background,this.surface,this.radius,this.style);
+  final FontWeight headingWeight;
+  final double cardElevation, buttonRadius;
+  const ComicTheme(this.name,this.subtitle,this.fontFamily,this.seed,this.background,this.surface,this.radius,this.style,this.headingWeight,this.cardElevation,this.buttonRadius);
 }
 const comicThemes=<ComicTheme>[
-  ComicTheme('Comic Pop','Bold bubbles, stickers and playful cards',Color(0xFFE85D75),Color(0xFFFFF8F0),Color(0xFFFFFFFF),22,0),
-  ComicTheme('Scrapbook','Paper layers, tape and handmade memories',Color(0xFFB86B45),Color(0xFFF5EBDD),Color(0xFFFFFCF5),14,1),
-  ComicTheme('Watercolor','Soft painted pages and airy photo frames',Color(0xFF4C8DCE),Color(0xFFF2F8FB),Color(0xFFFFFFFF),26,2),
-  ComicTheme('Polaroid','Classic photo-book pages and film frames',Color(0xFF6B6258),Color(0xFFECE7DE),Color(0xFFFFFEFA),8,3),
-  ComicTheme('Midnight','Cinematic dark gallery with glowing accents',Color(0xFF8B7CFF),Color(0xFF090B14),Color(0xFF151927),18,4),
-  ComicTheme('Minimal','Clean editorial photo library with calm spacing',Color(0xFF3D6B5B),Color(0xFFF7F8F6),Color(0xFFFFFFFF),12,5),
+  ComicTheme('Comic Pop','Bold bubbles, stickers and playful cards','sans-serif-rounded',Color(0xFFE85D75),Color(0xFFFFF8F0),Color(0xFFFFFFFF),24,0,FontWeight.w900,0,26),
+  ComicTheme('Scrapbook','Paper layers, tape and handmade memories','serif',Color(0xFFB86B45),Color(0xFFF5EBDD),Color(0xFFFFFCF5),14,1,FontWeight.w700,3,14),
+  ComicTheme('Watercolor','Soft painted pages and airy photo frames','sans-serif',Color(0xFF4C8DCE),Color(0xFFF2F8FB),Color(0xFFFFFFFF),26,2,FontWeight.w800,2,28),
+  ComicTheme('Polaroid','Classic photo-book pages and film frames','sans-serif',Color(0xFF6B6258),Color(0xFFECE7DE),Color(0xFFFFFEFA),8,3,FontWeight.w700,1,10),
+  ComicTheme('Midnight','Cinematic dark gallery with glowing accents','sans-serif',Color(0xFF8B7CFF),Color(0xFF090B14),Color(0xFF151927),18,4,FontWeight.w900,2,20),
+  ComicTheme('Minimal','Clean editorial photo library with calm spacing','sans-serif',Color(0xFF3D6B5B),Color(0xFFF7F8F6),Color(0xFFFFFFFF),12,5,FontWeight.w700,0,12),
 ];
 
 class LittleMemoriesApp extends StatefulWidget {
@@ -252,25 +251,34 @@ class _AppState extends State<LittleMemoriesApp> {
   }
   ThemeData _buildTheme(ComicTheme t,bool isDark){
     final scheme=ColorScheme.fromSeed(seedColor:t.seed,brightness:isDark?Brightness.dark:Brightness.light);
-    final cardRadius=t.style==1?14.0:t.radius;
-    final cardBorder=t.style==3?BorderSide(color:scheme.outlineVariant.withValues(alpha:.7),width:1):BorderSide(color:scheme.primary.withValues(alpha:.16),width:t.style==4?1:2);
-    final elevation=t.style==1?1.5:(t.style==2?2:0);
+    final radius=t.radius;
+    final cardShape=RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==3?.22:.16),width:t.style==0?2:t.style==5?.8:1.4));
+    final baseText=ThemeData(useMaterial3:true).textTheme;
+    final text=baseText.apply(fontFamily:t.fontFamily,fontFamilyFallback:const ['sans-serif','serif'],bodyColor:scheme.onSurface,displayColor:scheme.onSurface);
+    final buttonShape=RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.buttonRadius),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==0?.75:.25),width:t.style==0?1.6:1));
     return ThemeData(
-      useMaterial3:true,
-      colorScheme:scheme,
-      scaffoldBackgroundColor:t.background,
-      cardTheme:CardThemeData(color:t.surface,elevation:elevation,margin:EdgeInsets.zero,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(cardRadius),side:cardBorder)),
-      appBarTheme:AppBarTheme(backgroundColor:t.background,surfaceTintColor:Colors.transparent,elevation:0,centerTitle:t.style==3||t.style==4,titleTextStyle:TextStyle(fontSize:t.style==4?21:20,fontWeight:t.style==5?FontWeight.w700:FontWeight.w900,color:scheme.onSurface)),
-      navigationBarTheme:NavigationBarThemeData(height:t.style==1?76:72,backgroundColor:t.style==4?t.surface:t.background,indicatorColor:scheme.primary.withValues(alpha:t.style==3?.16:.20),labelTextStyle:WidgetStatePropertyAll(TextStyle(fontWeight:t.style==5?FontWeight.w600:FontWeight.w800,fontSize:12))),
-      floatingActionButtonTheme:FloatingActionButtonThemeData(backgroundColor:scheme.primary,foregroundColor:scheme.onPrimary,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==3?12:18))),
-      filledButtonTheme:FilledButtonThemeData(style:FilledButton.styleFrom(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==3?10:t.style==1?14:17),side:t.style==0?BorderSide(color:scheme.primary,width:1.2):BorderSide.none),padding:const EdgeInsets.symmetric(horizontal:18,vertical:13))),
-      inputDecorationTheme:InputDecorationTheme(filled:true,fillColor:t.surface.withValues(alpha:isDark?.85:.92),border:OutlineInputBorder(borderRadius:BorderRadius.circular(t.style==3?10:16),borderSide:BorderSide(color:scheme.outlineVariant)),enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(t.style==3?10:16),borderSide:BorderSide(color:scheme.outlineVariant))),
-      chipTheme:ChipThemeData(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==3?8:14)),side:BorderSide(color:scheme.outlineVariant)),
-      listTileTheme:ListTileThemeData(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(cardRadius)),contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:2)),
-      dialogTheme:DialogThemeData(backgroundColor:t.surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==3?14:24))),
-      bottomSheetTheme:BottomSheetThemeData(backgroundColor:t.surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.vertical(top:Radius.circular(t.style==3?16:28)))),
+      useMaterial3:true,colorScheme:scheme,scaffoldBackgroundColor:t.background,
+      textTheme:text.copyWith(headlineLarge:text.headlineLarge?.copyWith(fontWeight:t.headingWeight),headlineMedium:text.headlineMedium?.copyWith(fontWeight:t.headingWeight),titleLarge:text.titleLarge?.copyWith(fontWeight:t.headingWeight),titleMedium:text.titleMedium?.copyWith(fontWeight:FontWeight.w800)),
+      visualDensity:t.style==5?VisualDensity.compact:VisualDensity.standard,
+      cardTheme:CardThemeData(color:t.surface,elevation:t.cardElevation,margin:EdgeInsets.zero,clipBehavior:Clip.antiAlias,shape:cardShape),
+      appBarTheme:AppBarTheme(backgroundColor:t.background,surfaceTintColor:Colors.transparent,foregroundColor:scheme.onSurface,elevation:t.style==1?1:0,centerTitle:t.style==3||t.style==4,titleTextStyle:text.titleLarge?.copyWith(fontWeight:t.headingWeight,color:scheme.onSurface)),
+      navigationBarTheme:NavigationBarThemeData(height:t.style==1?78:t.style==0?76:72,backgroundColor:t.style==4?t.surface:t.background,elevation:t.style==0?3:0,indicatorColor:scheme.primary.withValues(alpha:t.style==3?.14:.20),indicatorShape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==0?24:radius)),labelBehavior:t.style==5?NavigationDestinationLabelBehavior.alwaysShow:NavigationDestinationLabelBehavior.onlyShowSelected,labelTextStyle:WidgetStatePropertyAll(TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w800,fontSize:12,color:scheme.onSurface))),
+      floatingActionButtonTheme:FloatingActionButtonThemeData(backgroundColor:scheme.primary,foregroundColor:scheme.onPrimary,elevation:t.cardElevation+3,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.buttonRadius),side:BorderSide(color:scheme.onPrimary.withValues(alpha:.28),width:1))),
+      filledButtonTheme:FilledButtonThemeData(style:FilledButton.styleFrom(minimumSize:const Size(0,48),padding:const EdgeInsets.symmetric(horizontal:18,vertical:13),textStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w800),shape:buttonShape)),
+      outlinedButtonTheme:OutlinedButtonThemeData(style:OutlinedButton.styleFrom(minimumSize:const Size(0,48),textStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w800),shape:buttonShape)),
+      textButtonTheme:TextButtonThemeData(style:TextButton.styleFrom(textStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w800),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius)))),
+      iconButtonTheme:IconButtonThemeData(style:IconButton.styleFrom(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==0?18:radius)))),
+      inputDecorationTheme:InputDecorationTheme(filled:true,fillColor:t.surface.withValues(alpha:isDark?.88:.94),contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:14),border:OutlineInputBorder(borderRadius:BorderRadius.circular(t.style==3?10:radius),borderSide:BorderSide(color:scheme.outlineVariant)),enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(t.style==3?10:radius),borderSide:BorderSide(color:scheme.outlineVariant)),focusedBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(t.style==3?10:radius),borderSide:BorderSide(color:scheme.primary,width:2))),
+      chipTheme:ChipThemeData(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==0?20:radius),side:BorderSide(color:scheme.outlineVariant)),side:BorderSide(color:scheme.outlineVariant),labelStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w700)),
+      listTileTheme:ListTileThemeData(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius)),contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:3)),
+      dialogTheme:DialogThemeData(backgroundColor:t.surface,elevation:t.cardElevation+2,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==3?14:radius+4)),titleTextStyle:text.titleLarge?.copyWith(fontWeight:t.headingWeight,color:scheme.onSurface)),
+      bottomSheetTheme:BottomSheetThemeData(backgroundColor:t.surface,elevation:t.cardElevation+4,shape:RoundedRectangleBorder(borderRadius:BorderRadius.vertical(top:Radius.circular(radius+8)))),
+      popupMenuTheme:PopupMenuThemeData(color:t.surface,elevation:t.cardElevation+3,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius)),textStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w700,color:scheme.onSurface)),
+      switchTheme:SwitchThemeData(thumbColor:WidgetStatePropertyAll(scheme.primary),trackColor:WidgetStatePropertyAll(scheme.primary.withValues(alpha:.22))),
+      checkboxTheme:CheckboxThemeData(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==0?7:4))),
+      radioTheme:RadioThemeData(fillColor:WidgetStatePropertyAll(scheme.primary)),
       dividerTheme:DividerThemeData(color:scheme.outlineVariant.withValues(alpha:.55),thickness:t.style==5?.7:1),
-      snackBarTheme:SnackBarThemeData(behavior:SnackBarBehavior.floating,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(14))),
+      snackBarTheme:SnackBarThemeData(behavior:SnackBarBehavior.floating,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius)),contentTextStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w700)),
     );
   }
   @override Widget build(BuildContext context){
