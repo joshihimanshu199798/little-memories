@@ -1264,7 +1264,9 @@ class MomentsPage extends StatelessWidget {
                       onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>Viewer(
                         asset:a, all:grouped[year]!, onEdit:onEdit, onShare:onShare,
                         memoryName:names[a.id]??a.title??'Memory', caption:captions[a.id]??'',
-                        favorite:favorites.contains(a.id), onToggleFavorite:()=>onToggleFavorite(a),
+                        favorite:favorites.contains(a.id),
+                        nameFor:(id)=>names[id]??'Memory', captionFor:(id)=>captions[id]??'',
+                        isFavorite:(id)=>favorites.contains(id), onToggleFavoriteAsset:onToggleFavorite,
                       ))),
                       child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Stack(fit:StackFit.expand,children:[
                         Thumb(a),
@@ -1290,6 +1292,10 @@ class Viewer extends StatefulWidget {  final AssetEntity asset;
   final String? memoryName;
   final String? caption;
   final bool favorite;
+  final String Function(String id)? nameFor;
+  final String Function(String id)? captionFor;
+  final bool Function(String id)? isFavorite;
+  final Future<void> Function(AssetEntity)? onToggleFavoriteAsset;
   final Future<void> Function()? onToggleFavorite;
   const Viewer({
     super.key,
@@ -1300,6 +1306,10 @@ class Viewer extends StatefulWidget {  final AssetEntity asset;
     this.memoryName,
     this.caption,
     this.favorite = false,
+    this.nameFor,
+    this.captionFor,
+    this.isFavorite,
+    this.onToggleFavoriteAsset,
     this.onToggleFavorite,
   });
   @override State<Viewer> createState() => _ViewerState();
@@ -1317,9 +1327,9 @@ class _ViewerState extends State<Viewer> {
 
   @override Widget build(BuildContext context) {
     final current = widget.all[index];
-    final currentName = index == widget.all.indexOf(widget.asset) ? widget.memoryName : current.title;
-    final currentCaption = index == widget.all.indexOf(widget.asset) ? widget.caption : null;
-    final currentFavorite = index == widget.all.indexOf(widget.asset) ? widget.favorite : false;
+    final currentName = widget.nameFor?.call(current.id) ?? (index == widget.all.indexOf(widget.asset) ? widget.memoryName : current.title);
+    final currentCaption = widget.captionFor?.call(current.id) ?? (index == widget.all.indexOf(widget.asset) ? widget.caption : null);
+    final currentFavorite = widget.isFavorite?.call(current.id) ?? (index == widget.all.indexOf(widget.asset) ? widget.favorite : false);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -1328,9 +1338,17 @@ class _ViewerState extends State<Viewer> {
         foregroundColor: Colors.white,
         title: Text('${index + 1}/${widget.all.length}'),
         actions: [
-          if (widget.onToggleFavorite != null)
+          if (widget.onToggleFavoriteAsset != null || widget.onToggleFavorite != null)
             IconButton(
-              onPressed: widget.onToggleFavorite,
+              onPressed: () async {
+                if (widget.onToggleFavoriteAsset != null) {
+                  await widget.onToggleFavoriteAsset!(current);
+                  if (mounted) setState(() {});
+                } else {
+                  await widget.onToggleFavorite!();
+                  if (mounted) setState(() {});
+                }
+              },
               tooltip: currentFavorite ? 'Remove favorite' : 'Add favorite',
               icon: Icon(currentFavorite ? Icons.favorite : Icons.favorite_border),
             ),
