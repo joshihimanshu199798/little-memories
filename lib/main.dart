@@ -38,17 +38,32 @@ class PcConnectService {
   HttpServer? _server;
   String? url;
   final String token = List.generate(18, (_) => Random.secure().nextInt(16).toRadixString(16)).join();
+  final String pairingKey;
 
-  PcConnectService({required this.photos, required this.timelines, required this.names, required this.captions, required this.onConnected, required this.onBackupStarted});
+  PcConnectService({required this.photos, required this.timelines, required this.names, required this.captions, required this.onConnected, required this.onBackupStarted, required this.pairingKey});
+
+  static Future<String> loadPairingKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    var key = prefs.getString('pcPairingKey');
+    if (key == null || key.length < 32) {
+      key = List.generate(48, (_) => Random.secure().nextInt(16).toRadixString(16)).join();
+      await prefs.setString('pcPairingKey', key);
+    }
+    return key;
+  }
   bool get running => _server != null;
 
   Future<void> start() async {
     if (running) return;
     final handler = const shelf.Pipeline().addHandler(_handle);
-    _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, 0, poweredByHeader: null);
+    try {
+      _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, 47832, poweredByHeader: null);
+    } catch (_) {
+      _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, 0, poweredByHeader: null);
+    }
     final ip = await _findLocalIp();
     if (ip == null) { await stop(); throw StateError('Could not find a Wi-Fi network address.'); }
-    url = 'http://${ip}:${_server!.port}/?token=${token}';
+    url = 'http://${ip}:${_server!.port}/?token=${token}&pair=${Uri.encodeQueryComponent(pairingKey)}';
   }
 
   Future<String?> _findLocalIp() async {
@@ -66,7 +81,9 @@ class PcConnectService {
     return candidates.first;
   }
 
-  bool _authorized(shelf.Request request) => request.url.queryParameters['token'] == token;
+  bool _authorized(shelf.Request request) =>
+      request.url.queryParameters['token'] == token ||
+      request.url.queryParameters['pair'] == pairingKey;
   AssetEntity? _asset(String id) {
     for (final a in photos) { if (a.id == id) return a; }
     return null;
@@ -146,10 +163,12 @@ input{accent-color:#e58a9a}.count{opacity:.75}
 </main>
 <script>
 const token=${jsonEncode(token)};
+const pair=${jsonEncode(pairingKey)};
 let data=[];
-function url(type,id){return '/'+type+'/'+encodeURIComponent(id)+'?token='+encodeURIComponent(token)}
+function auth(){return 'pair='+encodeURIComponent(pair)+'&token='+encodeURIComponent(token)}
+function url(type,id){return '/'+type+'/'+encodeURIComponent(id)+'?'+auth()}
 async function load(){
- const r=await fetch('/api/photos?token='+encodeURIComponent(token)); const j=await r.json(); data=j.photos||[];
+ const r=await fetch('/api/photos?'+auth()); const j=await r.json(); data=j.photos||[];
  document.getElementById('grid').innerHTML=data.map(p=>'<div class="card"><img loading="lazy" src="'+url('photo',p.id)+'"><div class="meta"><label><input type="checkbox" class="pick" value="'+p.id.replace(/"/g,'&quot;')+'"> Select</label><b>'+escapeHtml(p.name)+'</b><small>'+escapeHtml(p.caption||'')+'</small><a href="'+url('download',p.id)+'">Download photo</a></div></div>').join('');
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -157,7 +176,7 @@ function selectAll(v){document.querySelectorAll('.pick').forEach(x=>x.checked=v)
 function downloadMany(ids){ids.filter(Boolean).forEach((id,i)=>setTimeout(()=>{const a=document.createElement('a');a.href=url('download',id);a.download='';document.body.appendChild(a);a.click();a.remove()},i*500))}
 function downloadSelected(){downloadMany([...document.querySelectorAll('.pick:checked')].map(x=>x.value))}
 async function fullBackup(){
- const r=await fetch('/api/backup-start?token='+encodeURIComponent(token));
+ const r=await fetch('/api/backup-start?'+auth());
  if(r.ok){ downloadMany(data.map(p=>p.id)); alert('Full backup started. Keep this browser tab open until the downloads finish.'); }
 }
 load();
@@ -586,7 +605,8 @@ class _PcConnectPageState extends State<PcConnectPage> {
   @override void initState() { super.initState(); _start(); }
   Future<void> _start() async {
     setState(() { starting = true; error = null; });
-    final s = PcConnectService(photos: widget.photos, timelines: widget.timelines, names: widget.names, captions: widget.captions, onConnected: () { if (mounted) setState(() => connectedAt = DateTime.now()); }, onBackupStarted: widget.onBackupStarted);
+    final pairingKey = await PcConnectService.loadPairingKey();
+    final s = PcConnectService(photos: widget.photos, timelines: widget.timelines, names: widget.names, captions: widget.captions, pairingKey: pairingKey, onConnected: () { if (mounted) setState(() => connectedAt = DateTime.now()); }, onBackupStarted: widget.onBackupStarted);
     try {
       await s.start();
       if (mounted) setState(() { service = s; starting = false; });
