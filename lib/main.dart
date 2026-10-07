@@ -247,8 +247,7 @@ class _HomeState extends State<Home> {
   Map<String, String> names = {}, captions = {};
   List<String> backupHistory = [];
   bool selectionMode = false;
-  Set<String> selectedIds = {};  String childName = 'My Little Star', childBirthday = '';
-  String searchQuery = '';
+  Set<String> selectedIds = {};  String childName = 'My Little Star', childBirthday = '';  String searchQuery = '';
   bool showAllPhotos = false;
   final TextEditingController searchController = TextEditingController();
 
@@ -497,8 +496,7 @@ class _HomeState extends State<Home> {
               setState(() => t.assets = selected.toList()); _save(); Navigator.pop(context);
             }, child: const Text('Done')),
           ),          Expanded(child: GridView.builder(
-            padding: const EdgeInsets.all(8),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            padding: const EdgeInsets.all(8),            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: grid, crossAxisSpacing: 5, mainAxisSpacing: 5),
             itemCount: photos.length,
             itemBuilder: (_, i) {
@@ -654,6 +652,62 @@ class _HomeState extends State<Home> {
     );
   }
 
+  Widget _experienceHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Your memories', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurface)),
+          const SizedBox(height: 3),
+          Text('Moments worth keeping close', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ])),
+        Container(
+          decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, shape: BoxShape.circle),
+          child: IconButton(onPressed: () => setState(() => tab = 3), icon: const Icon(Icons.settings_outlined), tooltip: 'Settings'),
+        ),
+      ]),
+    );
+  }
+
+  Widget _modernQuickActions() {
+    final List<Map<String, dynamic>> actions = [
+      {'icon': Icons.search, 'label': 'Find a memory', 'onTap': () => setState(() => showAllPhotos = true)},
+      {'icon': Icons.favorite_rounded, 'label': 'Favorites', 'onTap': () => setState(() => tab = 2)},
+      {'icon': Icons.auto_stories_rounded, 'label': 'Stories', 'onTap': () => setState(() => tab = 1)},
+      {'icon': Icons.auto_awesome, 'label': 'On this day', 'onTap': _openMomentsPage},
+    ];
+    return SizedBox(
+      height: 92,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        scrollDirection: Axis.horizontal,
+        itemCount: actions.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (_, i) {
+          final a = actions[i];
+          return InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: a['onTap'] as VoidCallback,
+            child: Container(
+              width: 142,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                color: Theme.of(context).colorScheme.surface,
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(a['icon'] as IconData, size: 23),
+                const Spacer(),
+                Text(a['label'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _dashboard() {
     final recent = photos.take(12).toList();
     final favs = photos.where((a) => favorites.contains(a.id)).take(12).toList();
@@ -662,19 +716,20 @@ class _HomeState extends State<Home> {
       child: ListView(
         padding: const EdgeInsets.only(bottom: 28),
         children: [
+          _experienceHeader(),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-            child: Row(children: [
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Hello, ' + childName + ' ❤️', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 4),
-                Text(
-                  photos.isEmpty ? 'Your memory story starts here.' : photos.length.toString() + ' memories waiting to be rediscovered.',
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                ),
-              ])),
-              IconButton(onPressed: _editChildProfile, icon: const Icon(Icons.child_care_outlined)),
-            ]),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Card(
+              elevation: 0,
+              color: Theme.of(context).colorScheme.primaryContainer,
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                leading: const CircleAvatar(child: Icon(Icons.child_care_outlined)),
+                title: Text('Hello, ' + childName + ' ❤️', style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text(photos.isEmpty ? 'Your memory story starts here.' : photos.length.toString() + ' memories waiting to be rediscovered.'),
+                trailing: IconButton(onPressed: _editChildProfile, icon: const Icon(Icons.edit_outlined)),
+              ),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
@@ -687,29 +742,13 @@ class _HomeState extends State<Home> {
             ]),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('Quick actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-              TextButton.icon(
-                onPressed: () => setState(() => showAllPhotos = true),
-                icon: const Icon(Icons.grid_view_rounded, size: 18),
-                label: const Text('All photos'),
-              ),
+              const Text('Quick access', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              TextButton(onPressed: () => setState(() => showAllPhotos = true), child: const Text('All photos')),
             ]),
           ),
-          SizedBox(
-            height: 92,
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              scrollDirection: Axis.horizontal,
-              children: [
-                _quickAction(Icons.search, 'Search', () => setState(() => showAllPhotos = true)),
-                _quickAction(Icons.favorite, 'Favorites', () => setState(() => tab = 2)),
-                _quickAction(Icons.auto_stories, 'Timelines', () => setState(() => tab = 1)),
-                _quickAction(Icons.add_photo_alternate_outlined, 'New timeline', _createTimeline),
-              ],
-            ),
-          ),
+          _modernQuickActions(),
           _sectionTitle('Recent memories', () => setState(() => showAllPhotos = true)),
           _memoryStrip(recent, emptyText: 'Add photos to your phone gallery to see them here.'),
           _smartAlbums(),
@@ -747,8 +786,7 @@ class _HomeState extends State<Home> {
                         : Row(children: imgs.map((a) => Expanded(child: Thumb(a))).toList()),
                     ),
                   ),
-                  title: Text(t.title, style: const TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: Text(t.assets.length.toString() + ' photos' + (t.description.isEmpty ? '' : ' • ' + t.description)),
+                  title: Text(t.title, style: const TextStyle(fontWeight: FontWeight.w800)),                  subtitle: Text(t.assets.length.toString() + ' photos' + (t.description.isEmpty ? '' : ' • ' + t.description)),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TimelinePage(
                     t: t, find: _find, grid: grid, onEdit: _openPhotoEditor,
@@ -998,7 +1036,6 @@ class PcConnectPage extends StatefulWidget {
   const PcConnectPage({super.key, required this.photos, required this.timelines, required this.names, required this.captions, required this.onBackupStarted, this.startBackupMode = false});
   @override State<PcConnectPage> createState() => _PcConnectPageState();
 }
-
 class _PcConnectPageState extends State<PcConnectPage> {
   PcConnectService? service;
   bool starting = true;
@@ -1247,8 +1284,7 @@ class MomentsPage extends StatelessWidget {
   String _monthName(int m)=>const ['January','February','March','April','May','June','July','August','September','October','November','December'][m-1];
 }
 
-class Viewer extends StatefulWidget {
-  final AssetEntity asset;
+class Viewer extends StatefulWidget {  final AssetEntity asset;
   final List<AssetEntity> all;
   final Future<void> Function(AssetEntity) onEdit;
   final Future<void> Function(AssetEntity) onShare;
