@@ -861,9 +861,26 @@ class _HomeState extends State<Home> {
               ClipRRect(borderRadius: BorderRadius.circular(9), child: Thumb(a)),
               if (galleryShowNames && grid <= 3) Positioned(left: 6, right: 6, bottom: 6, child: Text(names[a.id] ?? a.title ?? 'Memory', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, shadows: [Shadow(blurRadius: 6)]))),
               if (fav) const Positioned(right: 6, top: 6, child: Icon(Icons.favorite, color: Colors.white, shadows: [Shadow(blurRadius: 5)])),
-              if (selectedIds.contains(a.id)) Positioned.fill(child: Container(
-                decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(.28), borderRadius: BorderRadius.circular(9), border: Border.all(color: Theme.of(context).colorScheme.primary, width: 3)),
-                child: const Align(alignment: Alignment.topRight, child: Padding(padding: EdgeInsets.all(6), child: CircleAvatar(radius: 14, child: Icon(Icons.check, size: 17))))),
+              if (selectedIds.contains(a.id))
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(.28),
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(color: Theme.of(context).colorScheme.primary, width: 3),
+                    ),
+                    child: const Align(
+                      alignment: Alignment.topRight,
+                      child: Padding(
+                        padding: EdgeInsets.all(6),
+                        child: CircleAvatar(
+                          radius: 14,
+                          child: Icon(Icons.check, size: 17),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ]),
           );
         },
