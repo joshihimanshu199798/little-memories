@@ -526,7 +526,7 @@ class _HomeState extends State<Home> {
     final groups = <String, List<AssetEntity>>{};
     for (final a in photos) {
       final d = a.createDateTime;
-      final key = '\${d.year}-\${d.month.toString().padLeft(2, '0')}';
+      final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
       groups.putIfAbsent(key, () => []).add(a);
     }
     final entries = groups.entries.take(6).toList();
@@ -538,11 +538,11 @@ class _HomeState extends State<Home> {
         itemCount: entries.length, separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (_, i) {
           final e = entries[i]; final parts = e.key.split('-');
-          final label = '\${parts[0]} • \${_monthName(int.parse(parts[1]))}';
+          final label = '${parts[0]} • ${_monthName(int.parse(parts[1]))}';
           return GestureDetector(onTap: () => _openPhoto(e.value.first, e.value), child: SizedBox(width: 150,
             child: ClipRRect(borderRadius: BorderRadius.circular(16), child: Stack(fit: StackFit.expand, children: [
               Thumb(e.value.first),
-              Positioned(left: 10, right: 10, bottom: 10, child: Text('$label\\n\${e.value.length} memories', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, shadows: [Shadow(blurRadius: 6)]))),
+              Positioned(left: 10, right: 10, bottom: 10, child: Text('$label\n${e.value.length} memories', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, shadows: [Shadow(blurRadius: 6)]))),
             ])),));
         },
       )),
