@@ -1124,7 +1124,21 @@ class Viewer extends StatefulWidget {
   final List<AssetEntity> all;
   final Future<void> Function(AssetEntity) onEdit;
   final Future<void> Function(AssetEntity) onShare;
-  const Viewer({super.key, required this.asset, required this.all, required this.onEdit, required this.onShare});
+  final String? memoryName;
+  final String? caption;
+  final bool favorite;
+  final Future<void> Function()? onToggleFavorite;
+  const Viewer({
+    super.key,
+    required this.asset,
+    required this.all,
+    required this.onEdit,
+    required this.onShare,
+    this.memoryName,
+    this.caption,
+    this.favorite = false,
+    this.onToggleFavorite,
+  });
   @override State<Viewer> createState() => _ViewerState();
 }
 class _ViewerState extends State<Viewer> {
