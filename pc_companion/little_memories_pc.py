@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import socket
 import threading
 import urllib.parse
 import urllib.request
@@ -55,6 +56,7 @@ class Companion(tk.Tk):
         row2.pack(fill="x")
         ttk.Button(row2, text="Test connection", command=self.test).pack(side="left")
         ttk.Button(row2, text="Reconnect paired phone", command=self.reconnect_paired).pack(side="left", padx=8)
+        ttk.Button(row2, text="🔎 Find phone automatically", command=self.discover_phone).pack(side="left", padx=8)
 
         dest = ttk.LabelFrame(root, text="2. Backup folder", padding=14)
         dest.pack(fill="x", pady=12)
@@ -143,6 +145,69 @@ class Companion(tk.Tk):
         self.url.set(pair.get("base_url", "") + "?pair=" + urllib.parse.quote(pair.get("pair", ""), safe=""))
         if self.test():
             self.write("Trusted phone reconnected without scanning a new QR code.")
+
+    def discover_phone(self):
+        pair = self.load_pairing()
+        if not pair or not pair.get("pair"):
+            messagebox.showinfo(APP_NAME, "Pair this PC with the phone once first. After that, automatic discovery can find it even when its IP changes.")
+            return
+        if self.busy:
+            return
+        self.status.set("Searching the local Wi-Fi network for Little Memories…")
+        self.write("Automatic discovery started.")
+        threading.Thread(target=self._discover_worker, args=(pair["pair"],), daemon=True).start()
+
+    def _discover_worker(self, pair):
+        sock = None
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            sock.settimeout(1.2)
+            sock.bind(("0.0.0.0", 0))
+            message = ("LITTLE_MEMORIES_DISCOVER_V1|" + pair).encode("utf-8")
+            sock.sendto(message, ("255.255.255.255", 47833))
+            found = None
+            while True:
+                try:
+                    data, addr = sock.recvfrom(4096)
+                except socket.timeout:
+                    break
+                try:
+                    item = json.loads(data.decode("utf-8"))
+                except Exception:
+                    continue
+                if item.get("service") == "Little Memories" and item.get("pair") == pair:
+                    found = (addr[0], int(item.get("port", 0)))
+                    break
+            if not found:
+                self.after(0, lambda: self._discovery_done(None))
+                return
+            ip, port = found
+            self.after(0, lambda: self._discovery_done((ip, port, pair)))
+        except Exception as e:
+            self.after(0, lambda: self._discovery_error(str(e)))
+        finally:
+            if sock:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+
+    def _discovery_done(self, found):
+        if not found:
+            self.status.set("Phone not found on this Wi-Fi network.")
+            self.write("Automatic discovery found no Little Memories phone.")
+            messagebox.showinfo(APP_NAME, "Phone not found. Make sure Little Memories → Connect to Windows PC is open and both devices are on the same Wi-Fi.")
+            return
+        ip, port, pair = found
+        self.url.set(f"http://{ip}:{port}/?pair={urllib.parse.quote(pair, safe='')}")
+        self.write(f"Phone discovered automatically at {ip}:{port}.")
+        self.test(quiet=False)
+
+    def _discovery_error(self, error):
+        self.status.set("Automatic discovery failed.")
+        self.write("DISCOVERY ERROR: " + error)
+        messagebox.showerror(APP_NAME, "Automatic discovery failed: " + error)
 
     def base(self):
         u = self.url.get().strip()
