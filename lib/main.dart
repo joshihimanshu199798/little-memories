@@ -244,6 +244,8 @@ class _HomeState extends State<Home> {
   Set<String> favorites = {};
   Map<String, String> names = {}, captions = {};
   List<String> backupHistory = [];
+  bool selectionMode = false;
+  Set<String> selectedIds = {};
   String childName = 'My Little Star', childBirthday = '';
   String searchQuery = '';
   final TextEditingController searchController = TextEditingController();
@@ -326,6 +328,54 @@ class _HomeState extends State<Home> {
     await _save();
   }
 
+  void _toggleSelection(AssetEntity a) {
+    setState(() {
+      if (selectedIds.contains(a.id)) { selectedIds.remove(a.id); } else { selectedIds.add(a.id); }
+      selectionMode = selectedIds.isNotEmpty;
+    });
+  }
+
+  void _clearSelection() {
+    setState(() { selectedIds.clear(); selectionMode = false; });
+  }
+
+  Future<void> _bulkFavorite() async {
+    if (selectedIds.isEmpty) return;
+    setState(() {
+      for (final id in selectedIds) {
+        if (favorites.contains(id)) { favorites.remove(id); } else { favorites.add(id); }
+      }
+    });
+    await _save();
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${selectedIds.length} memories updated')));
+    _clearSelection();
+  }
+
+  Future<void> _bulkShare() async {
+    final list = selectedIds.map(_find).whereType<AssetEntity>().toList();
+    if (list.isEmpty) return;
+    await _share(list, 'Shared from Little Memories');
+    _clearSelection();
+  }
+
+  Future<void> _bulkAddToTimeline() async {
+    if (timelines.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Create a timeline first, then add selected memories.')));
+      return;
+    }
+    final chosen = await showDialog<Timeline>(
+      context: context,
+      builder: (_) => SimpleDialog(
+        title: const Text('Add selected memories to'),
+        children: timelines.map((t) => SimpleDialogOption(onPressed: () => Navigator.pop(context, t), child: Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(t.title)))).toList(),
+      ),
+    );
+    if (chosen == null) return;
+    setState(() { chosen.assets = <String>{...chosen.assets, ...selectedIds}.toList(); });
+    await _save();
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${selectedIds.length} memories added to ${chosen.title}')));
+    _clearSelection();
+  }
   Future<void> _editMemory(AssetEntity a) async {
     final n = TextEditingController(text: names[a.id] ?? a.title ?? 'Photo');
     final cap = TextEditingController(text: captions[a.id] ?? '');
@@ -485,11 +535,25 @@ class _HomeState extends State<Home> {
         itemBuilder: (_, i) {
           final a = source[i], fav = favorites.contains(a.id);
           return GestureDetector(
-            onTap: () => _openPhoto(a, source),
-            onLongPress: () => _editMemory(a),
+            onTap: () => selectionMode ? _toggleSelection(a) : _openPhoto(a, source),
+            onLongPress: () => _toggleSelection(a),
             child: Stack(fit: StackFit.expand, children: [
               ClipRRect(borderRadius: BorderRadius.circular(9), child: Thumb(a)),
               if (fav) const Positioned(right: 6, top: 6, child: Icon(Icons.favorite, color: Colors.white, shadows: [Shadow(blurRadius: 5)])),
+              if (selectedIds.contains(a.id))
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(.28),
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(color: Theme.of(context).colorScheme.primary, width: 3),
+                    ),
+                    child: const Align(
+                      alignment: Alignment.topRight,
+                      child: Padding(padding: EdgeInsets.all(6), child: CircleAvatar(radius: 14, child: Icon(Icons.check, size: 17))),
+                    ),
+                  ),
+                ),
             ]),
           );
         },
@@ -591,11 +655,29 @@ class _HomeState extends State<Home> {
     );
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Little Memories', style: TextStyle(fontWeight: FontWeight.w800)),
-        actions: [IconButton(onPressed: _refreshPhotos, icon: const Icon(Icons.refresh))],
+        title: selectionMode ? Text('${selectedIds.length} selected', style: const TextStyle(fontWeight: FontWeight.w800)) : const Text('Little Memories', style: TextStyle(fontWeight: FontWeight.w800)),
+        leading: selectionMode ? IconButton(onPressed: _clearSelection, icon: const Icon(Icons.close)) : null,
+        actions: selectionMode
+            ? [
+                IconButton(onPressed: _bulkFavorite, tooltip: 'Favorite', icon: const Icon(Icons.favorite_border)),
+                IconButton(onPressed: _bulkShare, tooltip: 'Share', icon: const Icon(Icons.share_outlined)),
+                PopupMenuButton<String>(
+                  onSelected: (v) {
+                    if (v == 'timeline') _bulkAddToTimeline();
+                    if (v == 'all') setState(() => selectedIds = photos.map((a) => a.id).toSet());
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'timeline', child: Text('Add to timeline')),
+                    PopupMenuItem(value: 'all', child: Text('Select all memories')),
+                  ],
+                ),
+              ]
+            : [IconButton(onPressed: _refreshPhotos, icon: const Icon(Icons.refresh))],
       ),
       body: body,
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: selectionMode
+          ? null
+          : NavigationBar(
         selectedIndex: tab, onDestinationSelected: (v) => setState(() => tab = v),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.photo_library_outlined), selectedIcon: Icon(Icons.photo_library), label: 'Gallery'),
