@@ -120,6 +120,12 @@ class Companion(tk.Tk):
 
         self.protocol("WM_DELETE_WINDOW", self.close_app)
 
+        # Resume enabled automation after the companion starts.
+        if self.discovery_watch.get():
+            self.schedule_discovery()
+        if self.auto_enabled.get():
+            self.schedule_auto()
+
     def settings_path(self):
         root = os.environ.get("APPDATA") or os.path.expanduser("~")
         return os.path.join(root, "Little Memories", SETTINGS)
