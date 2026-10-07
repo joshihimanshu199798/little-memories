@@ -153,8 +153,7 @@ class _HomeState extends State<Home> {
       MaterialPageRoute(
         builder: (_) => ImageEditor(
           image: bytes,
-          outputFormat: OutputFormat.jpeg,
-        ),
+          ),
       ),
     );
     if (edited == null || edited.isEmpty) return;
