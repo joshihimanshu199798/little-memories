@@ -240,6 +240,8 @@ class Home extends StatefulWidget {
 }
 class _HomeState extends State<Home> {
   int tab = 0, grid = 3;
+  bool galleryNewestFirst = true;
+  bool galleryShowNames = false;
   bool loading = true, permissionDenied = false;
   List<AssetEntity> photos = [];
   List<Timeline> timelines = [];
@@ -841,12 +843,13 @@ class _HomeState extends State<Home> {
     final q = searchQuery.trim().toLowerCase();
     final source = (onlyFavorites ? photos.where((a) => favorites.contains(a.id)) : photos)
       .where((a) => q.isEmpty || (names[a.id] ?? a.title ?? 'Photo').toLowerCase().contains(q) || (captions[a.id] ?? '').toLowerCase().contains(q))
-      .toList();
+      .toList()
+      ..sort((a, b) => galleryNewestFirst ? b.createDateTime.compareTo(a.createDateTime) : a.createDateTime.compareTo(b.createDateTime));
     if (source.isEmpty) return Center(child: Text(q.isEmpty ? (onlyFavorites ? 'No favorite memories yet.' : 'No photos found on this device.') : 'No memories match "$searchQuery".'));
     return RefreshIndicator(
       onRefresh: _refreshPhotos,
       child: GridView.builder(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.fromLTRB(8, 4, 8, 28),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: grid, crossAxisSpacing: 5, mainAxisSpacing: 5),
         itemCount: source.length,
         itemBuilder: (_, i) {
@@ -856,21 +859,11 @@ class _HomeState extends State<Home> {
             onLongPress: () => _toggleSelection(a),
             child: Stack(fit: StackFit.expand, children: [
               ClipRRect(borderRadius: BorderRadius.circular(9), child: Thumb(a)),
+              if (galleryShowNames && grid <= 3) Positioned(left: 6, right: 6, bottom: 6, child: Text(names[a.id] ?? a.title ?? 'Memory', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, shadows: [Shadow(blurRadius: 6)]))),
               if (fav) const Positioned(right: 6, top: 6, child: Icon(Icons.favorite, color: Colors.white, shadows: [Shadow(blurRadius: 5)])),
-              if (selectedIds.contains(a.id))
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(.28),
-                      borderRadius: BorderRadius.circular(9),
-                      border: Border.all(color: Theme.of(context).colorScheme.primary, width: 3),
-                    ),
-                    child: const Align(
-                      alignment: Alignment.topRight,
-                      child: Padding(padding: EdgeInsets.all(6), child: CircleAvatar(radius: 14, child: Icon(Icons.check, size: 17))),
-                    ),
-                  ),
-                ),
+              if (selectedIds.contains(a.id)) Positioned.fill(child: Container(
+                decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(.28), borderRadius: BorderRadius.circular(9), border: Border.all(color: Theme.of(context).colorScheme.primary, width: 3)),
+                child: const Align(alignment: Alignment.topRight, child: Padding(padding: EdgeInsets.all(6), child: CircleAvatar(radius: 14, child: Icon(Icons.check, size: 17))))),
             ]),
           );
         },
@@ -962,16 +955,22 @@ class _HomeState extends State<Home> {
             IconButton(onPressed: () => setState(() => showAllPhotos = false), icon: const Icon(Icons.arrow_back)),
             const Expanded(child: Text('All memories', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800))),
           ])),
-          Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 8), child: TextField(
+          Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 6), child: TextField(
             controller: searchController,
             onChanged: (v) => setState(() => searchQuery = v),
             decoration: InputDecoration(
-              hintText: 'Search photos, captions & memories',
+              hintText: 'Search memories',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: searchQuery.isEmpty ? null : IconButton(onPressed: () { searchController.clear(); setState(() => searchQuery = ''); }, icon: const Icon(Icons.clear)),
               filled: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
             ),
           )),
+          Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 6), child: Row(children: [
+            Expanded(child: Text(photos.length.toString() + ' memories', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600))),
+            IconButton(tooltip: galleryNewestFirst ? 'Showing newest first' : 'Showing oldest first', onPressed: () => setState(() => galleryNewestFirst = !galleryNewestFirst), icon: Icon(galleryNewestFirst ? Icons.south_rounded : Icons.north_rounded)),
+            IconButton(tooltip: galleryShowNames ? 'Hide names' : 'Show names', onPressed: () => setState(() => galleryShowNames = !galleryShowNames), icon: Icon(galleryShowNames ? Icons.text_fields : Icons.text_fields_outlined)),
+            PopupMenuButton<int>(tooltip: 'Grid size', initialValue: grid, onSelected: (v) => setState(() => grid = v), itemBuilder: (_) => [2,3,4,5,6].map((v) => PopupMenuItem(value: v, child: Text('$v columns'))).toList(), child: const Icon(Icons.grid_view_rounded)),
+          ])),
           Expanded(child: _gallery()),
         ])
       : _dashboard();
