@@ -2,11 +2,15 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:image_editor_plus/image_editor_plus.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:shelf/shelf.dart' as shelf;
+import 'package:shelf/shelf_io.dart' as shelf_io;
 
 void main() => runApp(const LittleMemoriesApp());
 
@@ -21,6 +25,140 @@ class Timeline {
     description: (j['description'] ?? '') as String,
     assets: List<String>.from(j['assets'] ?? const []),
   );
+}
+
+
+class PcConnectService {
+  final List<AssetEntity> photos;
+  final List<Timeline> timelines;
+  final Map<String, String> names;
+  final Map<String, String> captions;
+  final VoidCallback onConnected;
+  HttpServer? _server;
+  String? url;
+  final String token = List.generate(18, (_) => Random.secure().nextInt(16).toRadixString(16)).join();
+
+  PcConnectService({required this.photos, required this.timelines, required this.names, required this.captions, required this.onConnected});
+  bool get running => _server != null;
+
+  Future<void> start() async {
+    if (running) return;
+    final handler = const shelf.Pipeline().addHandler(_handle);
+    _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, 0, poweredByHeader: null);
+    final ip = await _findLocalIp();
+    if (ip == null) { await stop(); throw StateError('Could not find a Wi-Fi network address.'); }
+    url = 'http://\${ip}:\${_server!.port}/?token=\${token}';
+  }
+
+  Future<String?> _findLocalIp() async {
+    final interfaces = await NetworkInterface.list(includeLoopback: false, type: InternetAddressType.IPv4);
+    final candidates = <String>[];
+    for (final ni in interfaces) {
+      for (final a in ni.addresses) {
+        if (!a.isLoopback && !a.address.startsWith('169.254.')) candidates.add(a.address);
+      }
+    }
+    if (candidates.isEmpty) return null;
+    for (final ip in candidates) {
+      if (ip.startsWith('192.168.') || ip.startsWith('10.') || RegExp(r'^172\\.(1[6-9]|2[0-9]|3[0-1])\\.').hasMatch(ip)) return ip;
+    }
+    return candidates.first;
+  }
+
+  bool _authorized(shelf.Request request) => request.url.queryParameters['token'] == token;
+  AssetEntity? _asset(String id) {
+    for (final a in photos) { if (a.id == id) return a; }
+    return null;
+  }
+  String _mime(String path) {
+    final p = path.toLowerCase();
+    if (p.endsWith('.png')) return 'image/png';
+    if (p.endsWith('.webp')) return 'image/webp';
+    if (p.endsWith('.gif')) return 'image/gif';
+    if (p.endsWith('.heic') || p.endsWith('.heif')) return 'image/heic';
+    return 'image/jpeg';
+  }
+  String _safe(String value) => const HtmlEscape().convert(value);
+
+  Future<shelf.Response> _handle(shelf.Request request) async {
+    if (!_authorized(request)) return shelf.Response.unauthorized('This Little Memories connection has expired.');
+    if (request.url.path == '/') {
+      onConnected();
+      return shelf.Response.ok(_html(), headers: {'content-type': 'text/html; charset=utf-8'});
+    }
+    if (request.url.path == '/api/photos') {
+      onConnected();
+      final data = <Map<String, dynamic>>[];
+      for (final a in photos) {
+        data.add({'id': a.id, 'name': names[a.id] ?? a.title ?? 'Memory', 'caption': captions[a.id] ?? ''});
+      }
+      return shelf.Response.ok(jsonEncode({'photos': data, 'count': data.length}), headers: {'content-type': 'application/json'});
+    }
+    final parts = request.url.pathSegments;
+    if (parts.length == 2 && (parts[0] == 'photo' || parts[0] == 'download')) {
+      final id = Uri.decodeComponent(parts[1]);
+      final a = _asset(id);
+      if (a == null) return shelf.Response.notFound('Photo not found.');
+      final file = await a.file;
+      if (file == null || !await file.exists()) return shelf.Response.notFound('Photo file is unavailable.');
+      onConnected();
+      final filename = (a.title ?? 'memory').replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+      final headers = <String, Object>{'content-type': _mime(file.path), 'cache-control': 'private, max-age=3600'};
+      if (parts[0] == 'download') headers['content-disposition'] = 'attachment; filename="\$filename"';
+      return shelf.Response.ok(file.openRead(), headers: headers);
+    }
+    return shelf.Response.notFound('Not found.');
+  }
+
+  String _html() {
+    final photoCount = photos.length;
+    final timelineHtml = timelines.map((t) {
+      final ids = t.assets.where((id) => _asset(id) != null).map((id) => "'\${id.replaceAll("'", "\\'")}'").join(',');
+      return '<div class="timeline"><div><b>\${_safe(t.title)}</b><span>\${t.assets.length} photos</span></div><button onclick="downloadMany([\$ids])">Download timeline</button></div>';
+    }).join();
+    return '''<!doctype html>
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Little Memories — PC Connect</title>
+<style>
+body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#f6f3f4;color:#202124}
+header{padding:22px;background:#202124;color:white;position:sticky;top:0;z-index:2}
+main{max-width:1200px;margin:auto;padding:18px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+button{border:0;border-radius:12px;padding:10px 14px;background:#e58a9a;color:white;font-weight:700;cursor:pointer}
+button.secondary{background:#ddd;color:#222}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.card{background:white;border-radius:16px;overflow:hidden;box-shadow:0 2px 10px #0001}
+.card img{width:100%;height:180px;object-fit:cover;background:#ddd}
+.meta{padding:10px}.meta b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.meta small{color:#666;display:block;margin:4px 0 8px;min-height:18px}
+.timeline{background:white;padding:12px 14px;border-radius:14px;margin:8px 0;display:flex;justify-content:space-between;align-items:center;gap:12px}
+input{accent-color:#e58a9a}.count{opacity:.75}
+</style></head><body>
+<header><h2 style="margin:0">Little Memories — PC Connect</h2><div class="count">\$photoCount photos available</div></header>
+<main>
+<div class="toolbar"><button onclick="selectAll(true)">Select all</button><button class="secondary" onclick="selectAll(false)">Clear</button><button onclick="downloadSelected()">Download selected</button></div>
+<h3>Timelines</h3>\$timelineHtml
+<h3>All memories</h3><div id="grid" class="grid">Loading…</div>
+</main>
+<script>
+const token=\${jsonEncode(token)};
+let data=[];
+function url(type,id){return '/'+type+'/'+encodeURIComponent(id)+'?token='+encodeURIComponent(token)}
+async function load(){
+ const r=await fetch('/api/photos?token='+encodeURIComponent(token)); const j=await r.json(); data=j.photos||[];
+ document.getElementById('grid').innerHTML=data.map(p=>'<div class="card"><img loading="lazy" src="'+url('photo',p.id)+'"><div class="meta"><label><input type="checkbox" class="pick" value="'+p.id.replace(/"/g,'&quot;')+'"> Select</label><b>'+escapeHtml(p.name)+'</b><small>'+escapeHtml(p.caption||'')+'</small><a href="'+url('download',p.id)+'">Download photo</a></div></div>').join('');
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function selectAll(v){document.querySelectorAll('.pick').forEach(x=>x.checked=v)}
+function downloadMany(ids){ids.filter(Boolean).forEach((id,i)=>setTimeout(()=>{const a=document.createElement('a');a.href=url('download',id);a.download='';document.body.appendChild(a);a.click();a.remove()},i*500))}
+function downloadSelected(){downloadMany([...document.querySelectorAll('.pick:checked')].map(x=>x.value))}
+load();
+</script></body></html>''';
+  }
+
+  Future<void> stop() async {
+    final s = _server; _server = null; url = null;
+    if (s != null) await s.close(force: true);
+  }
 }
 
 class LittleMemoriesApp extends StatefulWidget {
@@ -382,6 +520,7 @@ class _HomeState extends State<Home> {
       childName: childName,
       childBirthday: childBirthday,
       onChildEdit: _editChildProfile,
+      onPcConnect: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PcConnectPage(photos: photos, timelines: timelines, names: names, captions: captions))),
     );
     return Scaffold(
       appBar: AppBar(
@@ -399,6 +538,78 @@ class _HomeState extends State<Home> {
         ],
       ),
       floatingActionButton: tab == 1 ? FloatingActionButton.extended(onPressed: () => _createTimeline(), icon: const Icon(Icons.add), label: const Text('Timeline')) : null,
+    );
+  }
+}
+
+
+class PcConnectPage extends StatefulWidget {
+  final List<AssetEntity> photos;
+  final List<Timeline> timelines;
+  final Map<String, String> names;
+  final Map<String, String> captions;
+  const PcConnectPage({super.key, required this.photos, required this.timelines, required this.names, required this.captions});
+  @override State<PcConnectPage> createState() => _PcConnectPageState();
+}
+
+class _PcConnectPageState extends State<PcConnectPage> {
+  PcConnectService? service;
+  bool starting = true;
+  String? error;
+  DateTime? connectedAt;
+
+  @override void initState() { super.initState(); _start(); }
+  Future<void> _start() async {
+    setState(() { starting = true; error = null; });
+    final s = PcConnectService(photos: widget.photos, timelines: widget.timelines, names: widget.names, captions: widget.captions, onConnected: () { if (mounted) setState(() => connectedAt = DateTime.now()); });
+    try {
+      await s.start();
+      if (mounted) setState(() { service = s; starting = false; });
+    } catch (e) {
+      await s.stop();
+      if (mounted) setState(() { error = e.toString(); starting = false; });
+    }
+  }
+  @override void dispose() { service?.stop(); super.dispose(); }
+
+  @override Widget build(BuildContext context) {
+    final url = service?.url;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Connect to Windows PC')),
+      body: ListView(padding: const EdgeInsets.all(20), children: [
+        Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(children: [
+          const Icon(Icons.wifi, size: 42),
+          const SizedBox(height: 8),
+          const Text('Same Wi-Fi connection required', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          const SizedBox(height: 6),
+          Text(starting ? 'Starting secure local transfer server…' : error != null ? 'Could not start: \$error' : 'Your photos never leave your local network.'),
+        ]))),
+        if (starting) const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator())),
+        if (error != null) FilledButton.icon(onPressed: _start, icon: const Icon(Icons.refresh), label: const Text('Try again')),
+        if (url != null) ...[
+          const SizedBox(height: 18),
+          Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(children: [
+            const Text('1. Scan this QR code on your PC', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Container(padding: const EdgeInsets.all(12), color: Colors.white, child: QrImageView(data: url, size: 230, version: QrVersions.auto)),
+            const SizedBox(height: 12),
+            const Text('Or type this address in Chrome/Edge:', textAlign: TextAlign.center),
+            const SizedBox(height: 6),
+            SelectableText(url, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700)),
+          ]))),
+          const SizedBox(height: 12),
+          Card(child: ListTile(leading: const Icon(Icons.photo_library_outlined), title: Text('\${widget.photos.length} photos ready'), subtitle: const Text('The PC page lets you preview, select and download photos and complete timelines.'))),
+          if (connectedAt != null) Card(child: ListTile(leading: const Icon(Icons.check_circle_outline), title: const Text('PC connected'), subtitle: Text('Last activity: \${connectedAt!.hour.toString().padLeft(2, '0')}:\${connectedAt!.minute.toString().padLeft(2, '0')}'))),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(onPressed: () async { await service?.stop(); if (mounted) setState(() => service = null); }, icon: const Icon(Icons.stop_circle_outlined), label: const Text('Stop PC connection')),
+        ],
+        const SizedBox(height: 16),
+        const Card(child: Padding(padding: EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('What you can do', style: TextStyle(fontWeight: FontWeight.w800)),
+          SizedBox(height: 8),
+          Text('• Preview your phone photos on Windows\\n• Select individual memories\\n• Download selected photos\\n• Download an entire timeline\\n• No cloud upload\\n• Connection is protected by a temporary QR token'),
+        ]))),
+      ]),
     );
   }
 }
@@ -475,14 +686,15 @@ class _ViewerState extends State<Viewer> {
 }
 
 class SettingsPage extends StatelessWidget {
-  final int grid; final bool dark; final ValueChanged<int> onGrid; final ValueChanged<bool> onDark; final VoidCallback onShare; final String childName; final String childBirthday; final VoidCallback onChildEdit;
-  const SettingsPage({super.key, required this.grid, required this.dark, required this.onGrid, required this.onDark, required this.onShare, required this.childName, required this.childBirthday, required this.onChildEdit});
+  final int grid; final bool dark; final ValueChanged<int> onGrid; final ValueChanged<bool> onDark; final VoidCallback onShare; final String childName; final String childBirthday; final VoidCallback onChildEdit; final VoidCallback onPcConnect;
+  const SettingsPage({super.key, required this.grid, required this.dark, required this.onGrid, required this.onDark, required this.onShare, required this.childName, required this.childBirthday, required this.onChildEdit, required this.onPcConnect});
   @override Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(16), children: [
     const Text('Professional controls', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800)),
     const SizedBox(height: 14),
     Card(child: SwitchListTile(value: dark, onChanged: onDark, title: const Text('Dark mode'), secondary: const Icon(Icons.dark_mode_outlined))),
     Card(child: ListTile(title: const Text('Gallery grid size'), subtitle: Slider(value: grid.toDouble(), min: 2, max: 6, divisions: 4, label: grid.toString() + ' columns', onChanged: (v) => onGrid(v.round())), trailing: Text(grid.toString() + '×'))),
     Card(child: ListTile(leading: const Icon(Icons.child_care_outlined), title: Text(childName), subtitle: Text(childBirthday.isEmpty ? 'Add birthday and milestones' : 'Birthday: $childBirthday'), onTap: onChildEdit)),
+    Card(child: ListTile(leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Connect to Windows PC'), subtitle: const Text('Pair on the same Wi-Fi and transfer photos from your phone to your PC.'), trailing: const Icon(Icons.qr_code_2), onTap: onPcConnect)),
     Card(child: ListTile(leading: const Icon(Icons.people_outline), title: const Text('Family collaboration'), subtitle: const Text('Private accounts, shared timelines, reactions and comments are planned for the cloud edition.'))),
     Card(child: ListTile(leading: const Icon(Icons.share_outlined), title: const Text('Share gallery'), onTap: onShare)),
     const Card(child: ListTile(leading: Icon(Icons.lock_outline), title: Text('Privacy first'), subtitle: Text('Photos stay in your device library. The app stores timeline metadata locally.'))),
