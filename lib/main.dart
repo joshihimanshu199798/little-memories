@@ -13,6 +13,7 @@ import 'package:image_editor_plus/image_editor_plus.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
+import 'cinematic_viewer.dart';
 
 void main() => runApp(const LittleMemoriesApp());
 
@@ -688,17 +689,17 @@ class _HomeState extends State<Home> {
   }
 
   void _openPhoto(AssetEntity a, List<AssetEntity> list) => Navigator.push(context,
-    MaterialPageRoute(builder: (_) => Viewer(
+    MaterialPageRoute(builder: (_) => CinematicViewer(
       asset: a,
       all: list,
       onEdit: _openPhotoEditor,
       onShare: (x) => _share([x], 'Shared from Little Memories'),
-      memoryName: names[a.id] ?? a.title ?? 'Memory',
-      caption: captions[a.id] ?? '',
-      favorite: favorites.contains(a.id),
-      onToggleFavorite: () async {
+      nameFor: (id) => names[id] ?? '',
+      captionFor: (id) => captions[id] ?? '',
+      isFavorite: (id) => favorites.contains(id),
+      onToggleFavorite: (x) async {
         setState(() {
-          if (favorites.contains(a.id)) { favorites.remove(a.id); } else { favorites.add(a.id); }
+          if (favorites.contains(x.id)) { favorites.remove(x.id); } else { favorites.add(x.id); }
         });
         await _save();
       },
@@ -1657,7 +1658,11 @@ class _TimelinePageState extends State<TimelinePage> {
         if (list.isEmpty) const SliverFillRemaining(hasScrollBody: false, child: Center(child: Text('Add memories to this timeline to get started.')))
         else SliverPadding(padding: const EdgeInsets.all(8), sliver: SliverGrid(
           delegate: SliverChildBuilderDelegate((_, i) => GestureDetector(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => Viewer(asset: list[i], all: list, onEdit: widget.onEdit, onShare: widget.onShare, memoryName: widget.nameFor(list[i].id), caption: widget.captionFor(list[i].id), favorite: widget.isFavorite(list[i].id), onToggleFavorite: () => widget.onToggleFavorite(list[i])))),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CinematicViewer(
+              asset: list[i], all: list, onEdit: widget.onEdit, onShare: widget.onShare,
+              nameFor: widget.nameFor, captionFor: widget.captionFor, isFavorite: widget.isFavorite,
+              onToggleFavorite: widget.onToggleFavorite,
+            ))),
             child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Thumb(list[i])),
           ), childCount: list.length),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: widget.grid, crossAxisSpacing: 5, mainAxisSpacing: 5),
@@ -1726,12 +1731,10 @@ class MomentsPage extends StatelessWidget {
                   itemBuilder:(_,i){
                     final a=grouped[year]![i];
                     return GestureDetector(
-                      onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>Viewer(
+                      onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>CinematicViewer(
                         asset:a, all:grouped[year]!, onEdit:onEdit, onShare:onShare,
-                        memoryName:names[a.id]??a.title??'Memory', caption:captions[a.id]??'',
-                        favorite:favorites.contains(a.id),
-                        nameFor:(id)=>names[id]??'Memory', captionFor:(id)=>captions[id]??'',
-                        isFavorite:(id)=>favorites.contains(id), onToggleFavoriteAsset:onToggleFavorite,
+                        nameFor:(id)=>names[id]??'', captionFor:(id)=>captions[id]??'',
+                        isFavorite:(id)=>favorites.contains(id), onToggleFavorite:onToggleFavorite,
                       ))),
                       child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Stack(fit:StackFit.expand,children:[
                         Thumb(a),
