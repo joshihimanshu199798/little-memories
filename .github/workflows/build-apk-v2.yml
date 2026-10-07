@@ -1,4 +1,4 @@
-name: Build Little Memories APK v2
+name: Build Little Memories APK
 
 on:
   workflow_dispatch:
@@ -11,16 +11,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Save app pubspec
-        run: cp pubspec.yaml /tmp/little-memories-pubspec.yaml
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.41.2'
           channel: stable
           cache: true
+
       - name: Generate Android project
         run: flutter create --platforms=android --project-name=little_memories .
+
       - name: Configure Android photo permissions
         run: |
           python3 - <<'PY'
@@ -33,16 +34,23 @@ jobs:
           s = s.replace('<application', perms + '\n    <application', 1)
           p.write_text(s)
           PY
-      - name: Restore app pubspec
-        run: cp /tmp/little-memories-pubspec.yaml pubspec.yaml
-      - name: Use verified source
-        run: cp lib/main_fixed.dart lib/main.dart
+
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Verify latest app source
+        run: |
+          test -s lib/main.dart
+          echo "Building latest lib/main.dart"
+          wc -l lib/main.dart
+          sha256sum lib/main.dart
+
       - name: Build APK
         run: flutter build apk --release
-      - name: Upload APK
+
+      - name: Upload single APK
         uses: actions/upload-artifact@v4
         with:
-          name: little-memories-apk-v2
+          name: little-memories-latest-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
