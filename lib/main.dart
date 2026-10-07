@@ -300,6 +300,7 @@ class _HomeState extends State<Home> {
   String childName = 'My Little Star', childBirthday = '';  String searchQuery = '';
   bool showAllPhotos = false;
   Set<String> hiddenIds = {};
+  Map<String, Set<String>> photoTags = {};
   int galleryFilter = 0;
   final TextEditingController searchController = TextEditingController();
 
@@ -320,6 +321,8 @@ class _HomeState extends State<Home> {
     final c = p.getString('captions'); if (c != null) captions = Map<String, String>.from(jsonDecode(c));
     backupHistory = p.getStringList('backupHistory') ?? [];
     hiddenIds = (p.getStringList('hiddenIds') ?? const []).toSet();
+    final tagsRaw = p.getString('photoTags');
+    if (tagsRaw != null) { final decoded = jsonDecode(tagsRaw) as Map; photoTags = decoded.map((k,v)=>MapEntry(k.toString(), Set<String>.from(v as List))); }
     galleryFilter = p.getInt('galleryFilter') ?? 0;
     grid = p.getInt('grid') ?? 3;
     childName = p.getString('childName') ?? 'My Little Star';
@@ -396,6 +399,7 @@ class _HomeState extends State<Home> {
     await p.setString('captions', jsonEncode(captions));
     await p.setStringList('backupHistory', backupHistory);
     await p.setStringList('hiddenIds', hiddenIds.toList());
+    await p.setString('photoTags', jsonEncode(photoTags.map((k,v)=>MapEntry(k,v.toList()))));
     await p.setInt('galleryFilter', galleryFilter);
     await p.setInt('grid', grid);
     await p.setString('childName', childName);
@@ -795,6 +799,7 @@ class _HomeState extends State<Home> {
               },
             ),
             ListTile(leading: const Icon(Icons.tune_rounded), title: const Text('Edit photo'), onTap: () { Navigator.pop(context); _openPhotoEditor(a); }),
+            ListTile(leading: const Icon(Icons.sell_outlined), title: const Text('Tags'), subtitle: Text((photoTags[a.id] ?? {}).join(' • ')), onTap: () { Navigator.pop(context); _showTagEditor(a); }),
             ListTile(leading: const Icon(Icons.share_rounded), title: const Text('Share photo'), onTap: () { Navigator.pop(context); _share([a], 'Shared from Little Memories'); }),
             ListTile(
               leading: Icon(hidden ? Icons.visibility_rounded : Icons.visibility_off_rounded),
@@ -812,6 +817,18 @@ class _HomeState extends State<Home> {
         ),
       ),
     );
+  }
+
+  Future<void> _showTagEditor(AssetEntity a) async {
+    final c = TextEditingController(text: (photoTags[a.id] ?? {}).join(', '));
+    final value = await showDialog<String>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Tag this photo'),
+      content: TextField(controller: c, autofocus: true, maxLines: 3, decoration: const InputDecoration(labelText: 'Tags', hintText: 'family, birthday, travel, baby', helperText: 'Separate tags with commas')),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, c.text), child: const Text('Save tags'))],
+    ));
+    c.dispose(); if (value == null) return;
+    final tags = value.split(',').map((e)=>e.trim().toLowerCase()).where((e)=>e.isNotEmpty).toSet();
+    setState(() { tags.isEmpty ? photoTags.remove(a.id) : photoTags[a.id] = tags; }); await _save();
   }
 
   void _openPhoto(AssetEntity a, List<AssetEntity> list) => Navigator.push(context,
@@ -1034,6 +1051,7 @@ class _HomeState extends State<Home> {
             const Text('All Photos', style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900, letterSpacing: -.7)),
             Text(photos.length.toString() + ' photos on this phone', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
           ])),
+          IconButton(tooltip: 'Favorite photos', onPressed: () => setState(() { tab = 2; showAllPhotos = false; }), icon: Icon(favorites.isEmpty ? Icons.favorite_border_rounded : Icons.favorite_rounded)),
           IconButton(tooltip: 'Select photos', onPressed: () => setState(() => selectionMode = true), icon: const Icon(Icons.checklist_rounded)),
           PopupMenuButton<int>(
             tooltip: 'Grid density',
@@ -1066,8 +1084,7 @@ class _HomeState extends State<Home> {
           FilterChip(label: const Text('Newest'), selected: galleryNewestFirst, onSelected: (_) => setState(() => galleryNewestFirst = true)),
           const SizedBox(width: 7),
           FilterChip(label: const Text('Oldest'), selected: !galleryNewestFirst, onSelected: (_) => setState(() => galleryNewestFirst = false)),
-          const SizedBox(width: 7),
-          FilterChip(label: Text('Hidden ' + hiddenIds.length.toString()), selected: false, onSelected: (_) => _showHiddenMemories()),
+
         ]),
       ),
       Expanded(child: _gallery()),
@@ -1442,6 +1459,7 @@ class _HomeState extends State<Home> {
     if (galleryFilter == 2) source = source.where((a) => (names[a.id] ?? '').trim().isNotEmpty).toList();
     if (galleryFilter == 3) source = source.where((a) => (captions[a.id] ?? '').trim().isNotEmpty).toList();
     if (galleryFilter == 4) source = source.where((a) => storyIds.contains(a.id)).toList();
+     if (galleryFilter == 5) source = source.where((a) => (photoTags[a.id] ?? {}).isNotEmpty).toList();
     source = source.where((a) {
       final text = ((names[a.id] ?? a.title ?? 'Photo') + ' ' + (captions[a.id] ?? '')).toLowerCase();
       return q.isEmpty || text.contains(q) || a.createDateTime.year.toString() == q;
@@ -1576,9 +1594,9 @@ class _HomeState extends State<Home> {
           SizedBox(height: 42, child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 12), scrollDirection: Axis.horizontal,
             children: [
-              for (final f in const [0, 1, 2, 3, 4])
+              for (final f in const [0, 1, 2, 3, 4, 5])
                 Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(
-                  label: Text(['All', 'Favorites', 'Named', 'Captions', 'In stories'][f]),
+                  label: Text(['All', 'Favorites', 'Named', 'Captions', 'In stories', 'Tagged'][f]),
                   selected: galleryFilter == f,
                   onSelected: (_) async { setState(() => galleryFilter = f); await _save(); },
                 )),
@@ -1587,7 +1605,7 @@ class _HomeState extends State<Home> {
           Expanded(child: _gallery()),
         ])
       : _dashboard();
-    final body = tab == 0 ? galleryBody : tab == 1 ? _albumsTab() : tab == 2 ? _gallery(onlyFavorites: true) : SettingsPage(
+    final body = tab == 0 ? galleryBody : tab == 1 ? _albumsTab() : tab == 2 ? PhotoSearchPage(photos: photos, names: names, captions: captions, tags: photoTags, favorites: favorites, hiddenIds: hiddenIds, grid: grid, onGrid: (v) async { setState(() => grid = v); await _save(); }, onOpen: _openPhoto, onEdit: _openPhotoEditor, onShare: (a) => _share([a], 'Shared from Little Memories'), onToggleFavorite: (a) async { setState(() { favorites.contains(a.id) ? favorites.remove(a.id) : favorites.add(a.id); }); await _save(); }, onTags: _showTagEditor) : tab == 3 ? PhotoStatsPage(photos: photos, favorites: favorites, hiddenIds: hiddenIds, tags: photoTags, albums: deviceAlbums, names: names, captions: captions) : SettingsPage(
       grid: grid, dark: Theme.of(context).brightness == Brightness.dark, themeIndex: widget.themeIndex,
       onGrid: (v) { setState(() => grid = v); _save(); },
       onDark: widget.onDark, onTheme: widget.onTheme,
@@ -1651,7 +1669,8 @@ class _HomeState extends State<Home> {
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
           NavigationDestination(icon: Icon(Icons.collections_bookmark_outlined), selectedIcon: Icon(Icons.collections_bookmark), label: 'Albums'),
-          NavigationDestination(icon: Icon(Icons.favorite_border), selectedIcon: Icon(Icons.favorite), label: 'Favorites'),
+          NavigationDestination(icon: Icon(Icons.search_rounded), selectedIcon: Icon(Icons.search_rounded), label: 'Explore'),
+          NavigationDestination(icon: Icon(Icons.insights_outlined), selectedIcon: Icon(Icons.insights_rounded), label: 'Stats'),
           NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),
@@ -1660,6 +1679,31 @@ class _HomeState extends State<Home> {
 }
 
 
+
+class PhotoSearchPage extends StatefulWidget{
+  final List<AssetEntity> photos;final Map<String,String> names,captions;final Map<String,Set<String>> tags;final Set<String> favorites,hiddenIds;final int grid;final Future<void> Function(int) onGrid;final void Function(AssetEntity,List<AssetEntity>) onOpen;final Future<void> Function(AssetEntity) onEdit,onShare,onToggleFavorite,onTags;
+  const PhotoSearchPage({super.key,required this.photos,required this.names,required this.captions,required this.tags,required this.favorites,required this.hiddenIds,required this.grid,required this.onGrid,required this.onOpen,required this.onEdit,required this.onShare,required this.onToggleFavorite,required this.onTags});
+  @override State<PhotoSearchPage> createState()=>_PhotoSearchPageState();
+}
+class _PhotoSearchPageState extends State<PhotoSearchPage>{
+  late TextEditingController c;String q='';bool favOnly=false;int filter=0;late int localGrid;
+  @override void initState(){super.initState();c=TextEditingController();localGrid=widget.grid;}@override void dispose(){c.dispose();super.dispose();}
+  List<AssetEntity> get results{var l=widget.photos.where((a)=>!widget.hiddenIds.contains(a.id)).toList();final x=q.trim().toLowerCase();if(favOnly)l=l.where((a)=>widget.favorites.contains(a.id)).toList();if(filter==1)l=l.where((a)=>(widget.tags[a.id]??{}).isNotEmpty).toList();if(filter==2){final y=DateTime.now().year;l=l.where((a)=>a.createDateTime.year==y).toList();}if(filter==3)l=l.where((a)=>a.width>a.height).toList();if(filter==4)l=l.where((a)=>a.height>a.width).toList();if(x.isNotEmpty)l=l.where((a)=>[widget.names[a.id]??'',widget.captions[a.id]??'',a.title??'',(widget.tags[a.id]??{}).join(' '),a.relativePath??'',a.createDateTime.year.toString(),a.createDateTime.month.toString()].join(' ').toLowerCase().contains(x)).toList();l.sort((a,b)=>b.createDateTime.compareTo(a.createDateTime));return l;}
+  Future<void> _actions(AssetEntity a,List<AssetEntity> l)=>showModalBottomSheet(context:context,showDragHandle:true,builder:(_)=>SafeArea(child:Wrap(children:[ListTile(leading:const Icon(Icons.open_in_full_rounded),title:const Text('Open photo'),onTap:(){Navigator.pop(context);widget.onOpen(a,l);}),ListTile(leading:Icon(widget.favorites.contains(a.id)?Icons.favorite:Icons.favorite_border),title:Text(widget.favorites.contains(a.id)?'Remove favorite':'Add favorite'),onTap:(){Navigator.pop(context);widget.onToggleFavorite(a);}),ListTile(leading:const Icon(Icons.sell_outlined),title:const Text('Tags'),onTap:(){Navigator.pop(context);widget.onTags(a);}),ListTile(leading:const Icon(Icons.tune_rounded),title:const Text('Edit photo'),onTap:(){Navigator.pop(context);widget.onEdit(a);}),ListTile(leading:const Icon(Icons.share_rounded),title:const Text('Share photo'),onTap:(){Navigator.pop(context);widget.onShare(a);})])));
+  @override Widget build(BuildContext context){final list=results;final cs=Theme.of(context).colorScheme;return Column(children:[Padding(padding:const EdgeInsets.fromLTRB(14,12,10,6),child:Row(children:[const Expanded(child:Text('Explore photos',style:TextStyle(fontSize:28,fontWeight:FontWeight.w900))),IconButton(tooltip:'Favorites',onPressed:()=>setState(()=>favOnly=!favOnly),icon:Icon(favOnly?Icons.favorite_rounded:Icons.favorite_border_rounded)),PopupMenuButton<int>(tooltip:'Grid size',initialValue:localGrid.clamp(2,8),onSelected:(v)async{setState(()=>localGrid=v);await widget.onGrid(v);},itemBuilder:(_)=>[2,3,4,5,6,7,8].map((v)=>PopupMenuItem(value:v,child:Text(v.toString()+' columns'))).toList(),child:const Icon(Icons.grid_view_rounded))])),Padding(padding:const EdgeInsets.fromLTRB(14,0,14,8),child:TextField(controller:c,onChanged:(v)=>setState(()=>q=v),decoration:InputDecoration(hintText:'Search photos, tags, folders, dates…',prefixIcon:const Icon(Icons.search_rounded),suffixIcon:q.isEmpty?null:IconButton(onPressed:(){c.clear();setState(()=>q='');},icon:const Icon(Icons.clear_rounded)),filled:true,border:OutlineInputBorder(borderRadius:BorderRadius.circular(18),borderSide:BorderSide.none)))),SizedBox(height:42,child:ListView(scrollDirection:Axis.horizontal,padding:const EdgeInsets.symmetric(horizontal:14),children:[for(final e in const [MapEntry(0,'All'),MapEntry(1,'Tagged'),MapEntry(2,'This year'),MapEntry(3,'Landscape'),MapEntry(4,'Portrait')])Padding(padding:const EdgeInsets.only(right:8),child:ChoiceChip(label:Text(e.value),selected:filter==e.key,onSelected:(_)=>setState(()=>filter=e.key)))])),Padding(padding:const EdgeInsets.fromLTRB(14,4,14,8),child:Row(children:[Text(list.length.toString()+' photos',style:TextStyle(fontWeight:FontWeight.w800,color:cs.onSurfaceVariant)),const Spacer(),if(q.isNotEmpty)Text('Search includes tags + folders',style:TextStyle(fontSize:11,color:cs.onSurfaceVariant))])),Expanded(child:list.isEmpty?const Center(child:Text('No photos found.')):GridView.builder(padding:const EdgeInsets.fromLTRB(8,2,8,24),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:localGrid.clamp(2,8),crossAxisSpacing:5,mainAxisSpacing:5),itemCount:list.length,itemBuilder:(_,i){final a=list[i];return GestureDetector(onTap:()=>widget.onOpen(a,list),onLongPress:()=>_actions(a,list),child:Stack(fit:StackFit.expand,children:[ClipRRect(borderRadius:BorderRadius.circular(8),child:Thumb(a)),if(widget.favorites.contains(a.id))const Positioned(right:5,top:5,child:Icon(Icons.favorite_rounded,color:Colors.white)),if((widget.tags[a.id]??{}).isNotEmpty)Positioned(left:5,bottom:5,child:Container(padding:const EdgeInsets.symmetric(horizontal:6,vertical:3),decoration:BoxDecoration(color:Colors.black54,borderRadius:BorderRadius.circular(8)),child:Text((widget.tags[a.id]!).take(2).join(' • '),style:const TextStyle(color:Colors.white,fontSize:8,fontWeight:FontWeight.w700))))]));}))]);}
+}
+class PhotoStatsPage extends StatefulWidget{
+  final List<AssetEntity> photos;final Set<String> favorites,hiddenIds;final Map<String,Set<String>> tags;final List<AssetPathEntity> albums;final Map<String,String> names,captions;
+  const PhotoStatsPage({super.key,required this.photos,required this.favorites,required this.hiddenIds,required this.tags,required this.albums,required this.names,required this.captions});
+  @override State<PhotoStatsPage> createState()=>_PhotoStatsPageState();
+}
+class _PhotoStatsPageState extends State<PhotoStatsPage>{
+  int bytes=0,measured=0;bool measuring=true;
+  @override void initState(){super.initState();_measure();}Future<void> _measure()async{var b=0,n=0;for(final a in widget.photos){try{final f=await a.file;if(f!=null&&await f.exists()){b+=await f.length();n++;if(mounted)setState(()=>{bytes=b,measured=n});}}catch(_){}}if(mounted)setState(()=>measuring=false);}
+  String _size(int b)=>b>=1073741824?(b/1073741824).toStringAsFixed(2)+' GB':b>=1048576?(b/1048576).toStringAsFixed(1)+' MB':(b/1024).toStringAsFixed(0)+' KB';
+  @override Widget build(BuildContext context){final cs=Theme.of(context).colorScheme;final years=<int>{};final folders=<String,int>{};final tc=<String,int>{};int land=0,port=0,square=0;double px=0;for(final a in widget.photos){years.add(a.createDateTime.year);if(a.width>a.height)land++;else if(a.height>a.width)port++;else square++;px+=a.width*a.height;final f=(a.relativePath??'Unknown').split('/').where((e)=>e.isNotEmpty).lastOrNull??'Unknown';folders[f]=(folders[f]??0)+1;for(final t in widget.tags[a.id]??{})tc[t]=(tc[t]??0)+1;}final tt=tc.entries.toList()..sort((a,b)=>b.value.compareTo(a.value));final tf=folders.entries.toList()..sort((a,b)=>b.value.compareTo(a.value));final named=widget.photos.where((a)=>(widget.names[a.id]??'').trim().isNotEmpty).length;final cap=widget.photos.where((a)=>(widget.captions[a.id]??'').trim().isNotEmpty).length;return RefreshIndicator(onRefresh:_measure,child:ListView(padding:const EdgeInsets.fromLTRB(14,14,14,110),children:[const Text('Photo Statistics',style:TextStyle(fontSize:29,fontWeight:FontWeight.w900)),Text('Everything you need to understand your library',style:TextStyle(color:cs.onSurfaceVariant)),const SizedBox(height:18),GridView.count(crossAxisCount:2,shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisSpacing:10,mainAxisSpacing:10,childAspectRatio:1.55,children:[_tile(context,Icons.photo_library_rounded,widget.photos.length.toString(),'Photos'),_tile(context,Icons.favorite_rounded,widget.favorites.length.toString(),'Favorites'),_tile(context,Icons.lock_rounded,widget.hiddenIds.length.toString(),'Private'),_tile(context,Icons.sell_outlined,widget.tags.length.toString(),'Tagged'),_tile(context,Icons.folder_rounded,widget.albums.where((a)=>!a.isAll).length.toString(),'Folders'),_tile(context,Icons.calendar_month_rounded,years.length.toString(),'Years')]),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Library overview',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),Text('Named photos: '+named.toString()),Text('Captions: '+cap.toString()),Text('Date span: '+(years.isEmpty?'—':years.reduce(min).toString()+' → '+years.reduce(max).toString())),Text('Orientation: '+land.toString()+' landscape • '+port.toString()+' portrait • '+square.toString()+' square'),Text('Folders: '+widget.albums.where((a)=>!a.isAll).length.toString())]))),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Most used tags',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),tt.isEmpty?const Text('No tags yet. Long-press any photo to add them.'):Wrap(spacing:7,runSpacing:7,children:tt.take(15).map((e)=>Chip(label:Text(e.key+' • '+e.value.toString()))).toList())]))),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Top phone folders',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),...tf.take(8).map((e)=>ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.folder_outlined),title:Text(e.key),trailing:Text(e.value.toString())))]))),const SizedBox(height:12),Card(child:ListTile(leading:const Icon(Icons.storage_rounded),title:Text(measuring?'Calculating photo storage…':'Photo storage'),subtitle:Text(measuring?measured.toString()+' files measured':_size(bytes)),onTap:_measure))]));}
+  Widget _tile(BuildContext c,IconData i,String v,String l){final cs=Theme.of(c).colorScheme;return Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Icon(i,color:cs.primary),const Spacer(),Text(v,style:const TextStyle(fontSize:21,fontWeight:FontWeight.w900)),Text(l,style:TextStyle(fontSize:11,color:cs.onSurfaceVariant))])));}
+}
 
 class DeviceAlbumPage extends StatefulWidget {
   final List<AssetPathEntity> paths;
