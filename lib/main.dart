@@ -13,6 +13,7 @@ import 'package:image_editor_plus/image_editor_plus.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
+import 'cinematic_viewer.dart';
 
 void main() => runApp(const LittleMemoriesApp());
 
@@ -688,17 +689,17 @@ class _HomeState extends State<Home> {
   }
 
   void _openPhoto(AssetEntity a, List<AssetEntity> list) => Navigator.push(context,
-    MaterialPageRoute(builder: (_) => Viewer(
+    MaterialPageRoute(builder: (_) => CinematicViewer(
       asset: a,
       all: list,
       onEdit: _openPhotoEditor,
       onShare: (x) => _share([x], 'Shared from Little Memories'),
-      memoryName: names[a.id] ?? a.title ?? 'Memory',
-      caption: captions[a.id] ?? '',
-      favorite: favorites.contains(a.id),
-      onToggleFavorite: () async {
+      nameFor: (id) => names[id] ?? '',
+      captionFor: (id) => captions[id] ?? '',
+      isFavorite: (id) => favorites.contains(id),
+      onToggleFavorite: (x) async {
         setState(() {
-          if (favorites.contains(a.id)) { favorites.remove(a.id); } else { favorites.add(a.id); }
+          if (favorites.contains(x.id)) { favorites.remove(x.id); } else { favorites.add(x.id); }
         });
         await _save();
       },
