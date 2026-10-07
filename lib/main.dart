@@ -910,35 +910,6 @@ class _HomeState extends State<Home> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
         children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 20, 14, 18),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [cs.primary, cs.primaryContainer]),
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [BoxShadow(color: cs.primary.withValues(alpha: .18), blurRadius: 24, offset: const Offset(0, 10))],
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('MEMORY STUDIO', style: TextStyle(color: cs.onPrimary, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 2.2)),
-                  const SizedBox(height: 6),
-                  Text(childName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: cs.onPrimary, fontSize: 27, fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 3),
-                  Text('Your private story, beautifully organized.', style: TextStyle(color: cs.onPrimary.withValues(alpha: .78), fontSize: 12)),
-                ])),
-                IconButton(style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: .18), foregroundColor: cs.onPrimary), onPressed: () => setState(() => tab = 3), icon: const Icon(Icons.tune_rounded)),
-              ]),
-              const SizedBox(height: 18),
-              Row(children: [
-                Expanded(child: _studioStat(photos.length.toString(), 'MEMORIES', cs)),
-                const SizedBox(width: 8),
-                Expanded(child: _studioStat(favs.length.toString(), 'LOVED', cs)),
-                const SizedBox(width: 8),
-                Expanded(child: _studioStat(_albumCount().toString(), 'MONTHS', cs)),
-              ]),
-            ]),
-          ),
-          const SizedBox(height: 20),
           if (featured != null) ...[
             Row(children: [
               const Expanded(child: Text('THE MOMENT', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.5))),
@@ -1039,16 +1010,6 @@ class _HomeState extends State<Home> {
       ),
     );
   }
-
-  Widget _studioStat(String value, String label, ColorScheme cs) => Container(
-    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 7),
-    decoration: BoxDecoration(color: Colors.white.withValues(alpha: .16), borderRadius: BorderRadius.circular(17)),
-    child: Column(children: [
-      Text(value, style: TextStyle(color: cs.onPrimary, fontSize: 19, fontWeight: FontWeight.w900)),
-      const SizedBox(height: 2),
-      Text(label, style: TextStyle(color: cs.onPrimary.withValues(alpha: .72), fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .8)),
-    ]),
-  );
 
   Widget _studioAction(IconData icon, String title, String subtitle, VoidCallback onTap, ColorScheme cs) => Expanded(
     child: InkWell(
@@ -1449,7 +1410,7 @@ class _HomeState extends State<Home> {
       onBackup: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PcConnectPage(photos: photos, timelines: timelines, names: names, captions: captions, onBackupStarted: _recordBackup, startBackupMode: true))),
     );
     return Scaffold(
-      appBar: AppBar(
+      appBar: tab == 0 && !showAllPhotos && !selectionMode ? null : AppBar(
         title: selectionMode ? Text('${selectedIds.length} selected', style: const TextStyle(fontWeight: FontWeight.w800)) : const Text('Little Memories', style: TextStyle(fontWeight: FontWeight.w800)),
         leading: selectionMode ? IconButton(onPressed: _clearSelection, icon: const Icon(Icons.close)) : null,
         actions: selectionMode
