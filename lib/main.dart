@@ -344,6 +344,7 @@ class _HomeState extends State<Home> {
     if (!mounted) return;
     setState(() => loading = true);
     final permission = await PhotoManager.requestPermissionExtend();
+    if (!mounted) return;
     if (!permission.isAuth && !permission.hasAccess) {
       setState(() { permissionDenied = true; loading = false; });
       return;
@@ -1364,12 +1365,18 @@ class _PcConnectPageState extends State<PcConnectPage> {
 
   @override void initState() { super.initState(); _start(); }
   Future<void> _start() async {
+    if (!mounted) return;
     setState(() { starting = true; error = null; });
     final pairingKey = await PcConnectService.loadPairingKey();
+    if (!mounted) return;
     final s = PcConnectService(photos: widget.photos, timelines: widget.timelines, names: widget.names, captions: widget.captions, pairingKey: pairingKey, onConnected: () { if (mounted) setState(() => connectedAt = DateTime.now()); }, onBackupStarted: widget.onBackupStarted);
     try {
       await s.start();
-      if (mounted) setState(() { service = s; starting = false; });
+      if (!mounted) {
+        await s.stop();
+        return;
+      }
+      setState(() { service = s; starting = false; });
     } catch (e) {
       await s.stop();
       if (mounted) setState(() { error = e.toString(); starting = false; });
