@@ -247,8 +247,7 @@ class _HomeState extends State<Home> {
   Map<String, String> names = {}, captions = {};
   List<String> backupHistory = [];
   bool selectionMode = false;
-  Set<String> selectedIds = {};
-  String childName = 'My Little Star', childBirthday = '';
+  Set<String> selectedIds = {};  String childName = 'My Little Star', childBirthday = '';
   String searchQuery = '';
   bool showAllPhotos = false;
   final TextEditingController searchController = TextEditingController();
@@ -497,8 +496,7 @@ class _HomeState extends State<Home> {
             trailing: FilledButton(onPressed: () {
               setState(() => t.assets = selected.toList()); _save(); Navigator.pop(context);
             }, child: const Text('Done')),
-          ),
-          Expanded(child: GridView.builder(
+          ),          Expanded(child: GridView.builder(
             padding: const EdgeInsets.all(8),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: grid, crossAxisSpacing: 5, mainAxisSpacing: 5),
@@ -537,6 +535,56 @@ class _HomeState extends State<Home> {
       },
     )));
 
+
+  List<AssetEntity> _onThisDayMemories() {
+    final now = DateTime.now();
+    final matches = photos.where((a) {
+      final d = a.createDateTime;
+      return d.month == now.month && d.day == now.day && d.year < now.year;
+    }).toList();
+    matches.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+    return matches;
+  }
+
+  Widget _onThisDay() {
+    final memories = _onThisDayMemories();
+    if (memories.isEmpty) return const SizedBox.shrink();
+    final years = memories.map((a) => a.createDateTime.year).toSet().length;
+    return Column(children: [
+      _sectionTitle('On this day', () => _openMomentsPage()),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        child: Row(children: [
+          const Icon(Icons.auto_awesome, size: 18),
+          const SizedBox(width: 7),
+          Expanded(child: Text(
+            years == 1 ? 'A little memory from a previous year' : '$years years of memories from this day',
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          )),
+        ]),
+      ),
+      _memoryStrip(memories.take(12).toList()),
+    ]);
+  }
+
+  void _openMomentsPage() {
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => MomentsPage(
+        photos: photos,
+        names: names,
+        captions: captions,
+        favorites: favorites,
+        onToggleFavorite: (a) async {
+          setState(() {
+            if (favorites.contains(a.id)) { favorites.remove(a.id); } else { favorites.add(a.id); }
+          });
+          await _save();
+        },
+        onEdit: _openPhotoEditor,
+        onShare: (a) => _share([a], 'Shared from Little Memories'),
+      ),
+    ));
+  }
 
   Widget _smartAlbums() {
     final groups = <String, List<AssetEntity>>{};
@@ -665,6 +713,7 @@ class _HomeState extends State<Home> {
           _sectionTitle('Recent memories', () => setState(() => showAllPhotos = true)),
           _memoryStrip(recent, emptyText: 'Add photos to your phone gallery to see them here.'),
           _smartAlbums(),
+          _onThisDay(),
           if (favs.isNotEmpty) ...[
             _sectionTitle('Favorite memories', () => setState(() => tab = 2)),
             _memoryStrip(favs),
@@ -747,8 +796,7 @@ class _HomeState extends State<Home> {
     padding: const EdgeInsets.fromLTRB(16, 18, 10, 6),
     child: Row(children: [
       Expanded(child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800))),
-      TextButton(onPressed: onSeeAll, child: const Text('See all')),
-    ]),
+      TextButton(onPressed: onSeeAll, child: const Text('See all')),    ]),
   );
 
   Widget _gallery({bool onlyFavorites = false}) {
@@ -997,8 +1045,7 @@ class _PcConnectPageState extends State<PcConnectPage> {
             const SizedBox(height: 6),
             SelectableText(url, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700)),
           ]))),
-          const SizedBox(height: 12),
-          Card(child: ListTile(leading: const Icon(Icons.photo_library_outlined), title: Text('${widget.photos.length} photos ready'), subtitle: Text(widget.startBackupMode ? 'Backup mode: download every photo to Windows.' : 'Preview, select and download photos and complete timelines.'))),
+          const SizedBox(height: 12),          Card(child: ListTile(leading: const Icon(Icons.photo_library_outlined), title: Text('${widget.photos.length} photos ready'), subtitle: Text(widget.startBackupMode ? 'Backup mode: download every photo to Windows.' : 'Preview, select and download photos and complete timelines.'))),
           if (widget.startBackupMode) Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Text('Full PC backup', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
             const SizedBox(height: 6),
@@ -1117,6 +1164,87 @@ class _TimelinePageState extends State<TimelinePage> {
       ]),
     );
   }
+}
+
+class MomentsPage extends StatelessWidget {
+  final List<AssetEntity> photos;
+  final Map<String, String> names;
+  final Map<String, String> captions;
+  final Set<String> favorites;
+  final Future<void> Function(AssetEntity) onToggleFavorite;
+  final Future<void> Function(AssetEntity) onEdit;
+  final Future<void> Function(AssetEntity) onShare;
+
+  const MomentsPage({
+    super.key, required this.photos, required this.names, required this.captions,
+    required this.favorites, required this.onToggleFavorite, required this.onEdit, required this.onShare,
+  });
+
+  List<AssetEntity> _memories() {
+    final now = DateTime.now();
+    final list = photos.where((a) {
+      final d = a.createDateTime;
+      return d.month == now.month && d.day == now.day && d.year < now.year;
+    }).toList();
+    list.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+    return list;
+  }
+
+  String _date(DateTime d) {
+    const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+    return months[d.month - 1] + ' ' + d.day.toString() + ', ' + d.year.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final memories=_memories();
+    final grouped=<int,List<AssetEntity>>{};
+    for(final a in memories){ grouped.putIfAbsent(a.createDateTime.year,()=>[]).add(a); }
+    final years=grouped.keys.toList()..sort((a,b)=>b.compareTo(a));
+    final now=DateTime.now();
+    return Scaffold(
+      appBar: AppBar(title: const Text('On this day'), actions: [
+        if(memories.isNotEmpty) Padding(padding: const EdgeInsets.only(right:16), child: Center(child: Text(memories.length.toString()+' memories'))),
+      ]),
+      body: memories.isEmpty
+        ? const Center(child: Text('No memories from this day in previous years yet.'))
+        : ListView(padding: const EdgeInsets.fromLTRB(16,12,16,30), children: [
+            Card(child: Padding(padding: const EdgeInsets.all(18), child: Row(children: [
+              const Icon(Icons.auto_awesome,size:30), const SizedBox(width:14),
+              Expanded(child: Text('Look back at '+now.day.toString()+' '+_monthName(now.month)+' — moments captured in previous years.', style: const TextStyle(fontWeight:FontWeight.w700))),
+            ]))),
+            const SizedBox(height:14),
+            ...years.map((year)=>Padding(
+              padding: const EdgeInsets.only(bottom:22),
+              child: Column(crossAxisAlignment:CrossAxisAlignment.start, children:[
+                Text(year.toString(),style:const TextStyle(fontSize:22,fontWeight:FontWeight.w900)),
+                const SizedBox(height:8),
+                GridView.builder(
+                  shrinkWrap:true, physics:const NeverScrollableScrollPhysics(), itemCount:grouped[year]!.length,
+                  gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:3,crossAxisSpacing:6,mainAxisSpacing:6),
+                  itemBuilder:(_,i){
+                    final a=grouped[year]![i];
+                    return GestureDetector(
+                      onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>Viewer(
+                        asset:a, all:grouped[year]!, onEdit:onEdit, onShare:onShare,
+                        memoryName:names[a.id]??a.title??'Memory', caption:captions[a.id]??'',
+                        favorite:favorites.contains(a.id), onToggleFavorite:()=>onToggleFavorite(a),
+                      ))),
+                      child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Stack(fit:StackFit.expand,children:[
+                        Thumb(a),
+                        Positioned(left:7,right:7,bottom:7,child:Text(_date(a.createDateTime),maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(color:Colors.white,fontSize:11,fontWeight:FontWeight.w700,shadows:[Shadow(blurRadius:5)]))),
+                        if(favorites.contains(a.id)) const Positioned(top:7,right:7,child:Icon(Icons.favorite,color:Colors.white,size:18)),
+                      ])),
+                    );
+                  },
+                ),
+              ]),
+            )),
+          ]),
+    );
+  }
+
+  String _monthName(int m)=>const ['January','February','March','April','May','June','July','August','September','October','November','December'][m-1];
 }
 
 class Viewer extends StatefulWidget {
@@ -1247,7 +1375,6 @@ class SettingsPage extends StatelessWidget {
     Card(child: ListTile(leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Connect to Windows PC'), subtitle: const Text('Pair on the same Wi-Fi and transfer photos from your phone to your PC.'), trailing: const Icon(Icons.qr_code_2), onTap: onPcConnect)),
     Card(child: ListTile(leading: const Icon(Icons.backup_outlined), title: const Text('Backup Center'), subtitle: Text(backupHistory.isEmpty ? 'No PC backups recorded yet.' : 'Last backup: ${backupHistory.first.substring(0, 16).replaceAll('T', ' ')}'), trailing: const Icon(Icons.chevron_right), onTap: onBackup)),
     Card(child: ListTile(leading: const Icon(Icons.people_outline), title: const Text('Family collaboration'), subtitle: const Text('Private accounts, shared timelines, reactions and comments are planned for the cloud edition.'))),
-    Card(child: ListTile(leading: const Icon(Icons.share_outlined), title: const Text('Share gallery'), onTap: onShare)),
-    const Card(child: ListTile(leading: Icon(Icons.lock_outline), title: Text('Privacy first'), subtitle: Text('Photos stay in your device library. The app stores timeline metadata locally.'))),
+    Card(child: ListTile(leading: const Icon(Icons.share_outlined), title: const Text('Share gallery'), onTap: onShare)),    const Card(child: ListTile(leading: Icon(Icons.lock_outline), title: Text('Privacy first'), subtitle: Text('Photos stay in your device library. The app stores timeline metadata locally.'))),
   ]);
 }
