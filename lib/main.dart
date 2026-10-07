@@ -251,6 +251,8 @@ class _HomeState extends State<Home> {
   bool selectionMode = false;
   Set<String> selectedIds = {};  String childName = 'My Little Star', childBirthday = '';  String searchQuery = '';
   bool showAllPhotos = false;
+  Set<String> hiddenIds = {};
+  int galleryFilter = 0;
   final TextEditingController searchController = TextEditingController();
 
   @override void initState() { super.initState(); _load(); }
@@ -269,6 +271,8 @@ class _HomeState extends State<Home> {
     final n = p.getString('names'); if (n != null) names = Map<String, String>.from(jsonDecode(n));
     final c = p.getString('captions'); if (c != null) captions = Map<String, String>.from(jsonDecode(c));
     backupHistory = p.getStringList('backupHistory') ?? [];
+    hiddenIds = (p.getStringList('hiddenIds') ?? const []).toSet();
+    galleryFilter = p.getInt('galleryFilter') ?? 0;
     grid = p.getInt('grid') ?? 3;
     childName = p.getString('childName') ?? 'My Little Star';
     childBirthday = p.getString('childBirthday') ?? '';
@@ -312,6 +316,8 @@ class _HomeState extends State<Home> {
     await p.setString('names', jsonEncode(names));
     await p.setString('captions', jsonEncode(captions));
     await p.setStringList('backupHistory', backupHistory);
+    await p.setStringList('hiddenIds', hiddenIds.toList());
+    await p.setInt('galleryFilter', galleryFilter);
     await p.setInt('grid', grid);
     await p.setString('childName', childName);
     await p.setString('childBirthday', childBirthday);
@@ -353,6 +359,87 @@ class _HomeState extends State<Home> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${selectedIds.length} memories updated')));
     _clearSelection();
   }
+
+  Future<void> _hideSelected() async {
+    if (selectedIds.isEmpty) return;
+    setState(() => hiddenIds.addAll(selectedIds));
+    await _save();
+    _clearSelection();
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Memories moved to Private / Hidden.')));
+  }
+
+  Future<void> _showHiddenMemories() async {
+    final hidden = photos.where((a) => hiddenIds.contains(a.id)).toList();
+    if (hidden.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No hidden memories.')));
+      return;
+    }
+    await showModalBottomSheet(context: context, isScrollControlled: true, builder: (_) => SafeArea(
+      child: SizedBox(height: MediaQuery.of(context).size.height * .75, child: Column(children: [
+        ListTile(title: const Text('Private / Hidden memories', style: TextStyle(fontWeight: FontWeight.w900)), subtitle: Text(hidden.length.toString() + ' memories'), trailing: IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close))),
+        Expanded(child: GridView.builder(
+          padding: const EdgeInsets.all(10),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: grid, crossAxisSpacing: 5, mainAxisSpacing: 5),
+          itemCount: hidden.length,
+          itemBuilder: (_, i) {
+            final a = hidden[i];
+            return Stack(fit: StackFit.expand, children: [
+              ClipRRect(borderRadius: BorderRadius.circular(10), child: Thumb(a)),
+              Positioned(right: 4, top: 4, child: IconButton(
+                style: IconButton.styleFrom(backgroundColor: Colors.black54, foregroundColor: Colors.white),
+                onPressed: () async { setState(() => hiddenIds.remove(a.id)); await _save(); Navigator.pop(context); _showHiddenMemories(); },
+                icon: const Icon(Icons.visibility_rounded, size: 18),
+              )),
+            ]);
+          },
+        )),
+      ])),
+    ));
+  }
+
+  Future<void> _smartDuplicateScan() async {
+    final groups = <String, List<AssetEntity>>{};
+    for (final a in photos) {
+      final key = a.createDateTime.year.toString() + '-' + a.createDateTime.month.toString() + '-' + a.createDateTime.day.toString() + '-' + (a.title ?? '').toLowerCase();
+      groups.putIfAbsent(key, () => []).add(a);
+    }
+    final duplicates = groups.values.where((g) => g.length > 1).toList();
+    if (!mounted) return;
+    final count = duplicates.fold<int>(0, (n, g) => n + g.length - 1);
+    await showDialog(context: context, builder: (_) => AlertDialog(
+      title: const Text('Duplicate scan'),
+      content: duplicates.isEmpty ? const Text('No likely duplicates found. Nothing is deleted automatically.') : Text(count.toString() + ' likely duplicate copies found across ' + duplicates.length.toString() + ' groups. Review them before deleting anything.'),
+      actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Done'))],
+    ));
+  }
+
+  Future<void> _memoryStatistics() async {
+    final years = <int>{}; final months = <String>{};
+    for (final a in photos) {
+      years.add(a.createDateTime.year);
+      months.add(a.createDateTime.year.toString() + '-' + a.createDateTime.month.toString());
+    }
+    final milestones = <String>[];
+    if (photos.length >= 100) milestones.add('100 memories');
+    if (photos.length >= 500) milestones.add('500 memories');
+    if (photos.length >= 1000) milestones.add('1,000 memories');
+    if (timelines.length >= 5) milestones.add('5 stories');
+    await showDialog(context: context, builder: (_) => AlertDialog(
+      title: const Text('Memory statistics'),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('📸 ' + photos.length.toString() + ' photos'),
+        Text('❤️ ' + favorites.length.toString() + ' favorites'),
+        Text('📖 ' + timelines.length.toString() + ' stories'),
+        Text('📅 ' + years.length.toString() + ' years • ' + months.length.toString() + ' months'),
+        const SizedBox(height: 14),
+        Text(milestones.isEmpty ? 'Next milestone: keep collecting memories ✨' : 'Milestones reached: ' + milestones.join(', ')),
+      ]),
+      actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Great'))],
+    ));
+  }
+
+  void _startSlideshow() { if (photos.isNotEmpty) _openPhoto(photos.first, photos); }
+  Future<void> _shareMemoryCollection() => _share(photos.take(20).toList(), 'My Little Memories');
 
   Future<void> _bulkShare() async {
     final list = selectedIds.map(_find).whereType<AssetEntity>().toList();
@@ -841,52 +928,41 @@ class _HomeState extends State<Home> {
 
   Widget _gallery({bool onlyFavorites = false}) {
     final q = searchQuery.trim().toLowerCase();
-    final source = (onlyFavorites ? photos.where((a) => favorites.contains(a.id)) : photos)
-      .where((a) => q.isEmpty || (names[a.id] ?? a.title ?? 'Photo').toLowerCase().contains(q) || (captions[a.id] ?? '').toLowerCase().contains(q))
-      .toList()
-      ..sort((a, b) => galleryNewestFirst ? b.createDateTime.compareTo(a.createDateTime) : a.createDateTime.compareTo(b.createDateTime));
-    if (source.isEmpty) return Center(child: Text(q.isEmpty ? (onlyFavorites ? 'No favorite memories yet.' : 'No photos found on this device.') : 'No memories match "$searchQuery".'));
-    return RefreshIndicator(
-      onRefresh: _refreshPhotos,
-      child: GridView.builder(
-        padding: const EdgeInsets.fromLTRB(8, 4, 8, 28),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: grid, crossAxisSpacing: 5, mainAxisSpacing: 5),
-        itemCount: source.length,
-        itemBuilder: (_, i) {
-          final a = source[i], fav = favorites.contains(a.id);
-          return GestureDetector(
-            onTap: () => selectionMode ? _toggleSelection(a) : _openPhoto(a, source),
-            onLongPress: () => _toggleSelection(a),
-            child: Stack(fit: StackFit.expand, children: [
-              ClipRRect(borderRadius: BorderRadius.circular(9), child: Thumb(a)),
-              if (galleryShowNames && grid <= 3) Positioned(left: 6, right: 6, bottom: 6, child: Text(names[a.id] ?? a.title ?? 'Memory', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, shadows: [Shadow(blurRadius: 6)]))),
-              if (fav) const Positioned(right: 6, top: 6, child: Icon(Icons.favorite, color: Colors.white, shadows: [Shadow(blurRadius: 5)])),
-              if (selectedIds.contains(a.id))
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(.28),
-                      borderRadius: BorderRadius.circular(9),
-                      border: Border.all(color: Theme.of(context).colorScheme.primary, width: 3),
-                    ),
-                    child: const Align(
-                      alignment: Alignment.topRight,
-                      child: Padding(
-                        padding: EdgeInsets.all(6),
-                        child: CircleAvatar(
-                          radius: 14,
-                          child: Icon(Icons.check, size: 17),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ]),
-          );
-        },
-      ),
-    );
+    final storyIds = timelines.expand((t) => t.assets).toSet();
+    var source = photos.where((a) => !hiddenIds.contains(a.id)).toList();
+    if (onlyFavorites || galleryFilter == 1) source = source.where((a) => favorites.contains(a.id)).toList();
+    if (galleryFilter == 2) source = source.where((a) => (names[a.id] ?? '').trim().isNotEmpty).toList();
+    if (galleryFilter == 3) source = source.where((a) => (captions[a.id] ?? '').trim().isNotEmpty).toList();
+    if (galleryFilter == 4) source = source.where((a) => storyIds.contains(a.id)).toList();
+    source = source.where((a) {
+      final text = ((names[a.id] ?? a.title ?? 'Photo') + ' ' + (captions[a.id] ?? '')).toLowerCase();
+      return q.isEmpty || text.contains(q) || a.createDateTime.year.toString() == q;
+    }).toList();
+    source.sort((a, b) => galleryNewestFirst ? b.createDateTime.compareTo(a.createDateTime) : a.createDateTime.compareTo(b.createDateTime));
+    if (source.isEmpty) return Center(child: Text(q.isEmpty ? (onlyFavorites ? 'No favorite memories yet.' : 'No memories match this filter.') : 'No memories match "' + searchQuery + '".'));
+    return RefreshIndicator(onRefresh: _refreshPhotos, child: GridView.builder(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 28),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: grid, crossAxisSpacing: 5, mainAxisSpacing: 5),
+      itemCount: source.length,
+      itemBuilder: (_, i) {
+        final a = source[i], fav = favorites.contains(a.id);
+        return GestureDetector(
+          onTap: () => selectionMode ? _toggleSelection(a) : _openPhoto(a, source),
+          onLongPress: () => _toggleSelection(a),
+          child: Stack(fit: StackFit.expand, children: [
+            ClipRRect(borderRadius: BorderRadius.circular(9), child: Thumb(a)),
+            if (galleryShowNames && grid <= 3) Positioned(left: 6, right: 6, bottom: 6, child: Text(names[a.id] ?? a.title ?? 'Memory', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, shadows: [Shadow(blurRadius: 6)]))),
+            if (fav) const Positioned(right: 6, top: 6, child: Icon(Icons.favorite, color: Colors.white, shadows: [Shadow(blurRadius: 5)])),
+            if (selectedIds.contains(a.id)) Positioned.fill(child: Container(
+              decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(.28), borderRadius: BorderRadius.circular(9), border: Border.all(color: Theme.of(context).colorScheme.primary, width: 3)),
+              child: const Align(alignment: Alignment.topRight, child: Padding(padding: EdgeInsets.all(6), child: CircleAvatar(radius: 14, child: Icon(Icons.check, size: 17)))),
+            )),
+          ]),
+        );
+      },
+    ));
   }
+
 
   Widget _timelines() => timelines.isEmpty
     ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
