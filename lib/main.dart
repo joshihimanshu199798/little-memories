@@ -233,6 +233,10 @@ const comicThemes=<ComicTheme>[
   ComicTheme('Polaroid','Film frames, compact cards and photo-book feel','sans-serif',Color(0xFF6B6258),Color(0xFFECE7DE),Color(0xFFFFFEFA),8,1,10,3),
   ComicTheme('Midnight','Cinematic dark gallery with glowing accents','sans-serif',Color(0xFF8B7CFF),Color(0xFF090B14),Color(0xFF151927),18,2,20,4),
   ComicTheme('Minimal','Clean editorial layout and calm spacing','sans-serif',Color(0xFF3D6B5B),Color(0xFFF7F8F6),Color(0xFFFFFFFF),12,0,12,5),
+  ComicTheme('Aurora','Iridescent night, glass panels and luminous accents','sans-serif',Color(0xFF6C63FF),Color(0xFF0B1020),Color(0xFF151C32),26,3,28,6),
+  ComicTheme('Sage Garden','Natural greens, warm paper and calm organic shapes','sans-serif',Color(0xFF3E8064),Color(0xFFF1F5EE),Color(0xFFFFFEFA),20,2,22,7),
+  ComicTheme('Sunset Film','Warm film tones, bold type and photo-journal energy','sans-serif',Color(0xFFE36B3D),Color(0xFFFFF2E8),Color(0xFFFFFBF7),16,2,18,8),
+  ComicTheme('Mono Studio','Black, white and graphite with a premium gallery feel','sans-serif',Color(0xFF22252A),Color(0xFFF3F4F6),Color(0xFFFFFFFF),10,1,12,9),
 ];
 
 class LittleMemoriesApp extends StatefulWidget {
@@ -1423,7 +1427,7 @@ class _HomeState extends State<Home> {
             IconButton(tooltip:'Select multiple photos',onPressed:()=>setState(()=>selectionMode=true),icon:const Icon(Icons.checklist_rounded)),
             IconButton(tooltip: galleryNewestFirst ? 'Showing newest first' : 'Showing oldest first', onPressed: () => setState(() => galleryNewestFirst = !galleryNewestFirst), icon: Icon(galleryNewestFirst ? Icons.south_rounded : Icons.north_rounded)),
             IconButton(tooltip: galleryShowNames ? 'Hide names' : 'Show names', onPressed: () => setState(() => galleryShowNames = !galleryShowNames), icon: Icon(galleryShowNames ? Icons.text_fields : Icons.text_fields_outlined)),
-            PopupMenuButton<int>(tooltip: 'Grid size', initialValue: grid, onSelected: (v) => setState(() => grid = v), itemBuilder: (_) => [2,3,4,5,6].map((v) => PopupMenuItem(value: v, child: Text('$v columns'))).toList(), child: const Icon(Icons.grid_view_rounded)),
+            PopupMenuButton<int>(tooltip: 'Grid size', initialValue: grid, onSelected: (v) async { setState(() => grid = v); await _save(); }, itemBuilder: (_) => [2,3,4,5,6,7,8].map((v) => PopupMenuItem(value: v, child: Text('$v columns'))).toList(), child: const Icon(Icons.grid_view_rounded)),
           ])),
           SizedBox(height: 42, child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 12), scrollDirection: Axis.horizontal,
@@ -1673,6 +1677,14 @@ class _MemoryPatternPainter extends CustomPainter {
       for(double x=0;x<size.width;x+=70) canvas.drawLine(Offset(x,0),Offset(x+25,size.height),p);
     } else if(style==5){
       for(double y=26;y<size.height;y+=56) canvas.drawLine(Offset(0,y),Offset(size.width,y),p);
+    } else if(style==6){
+      for(double x=0;x<size.width;x+=72) for(double y=0;y<size.height;y+=72) canvas.drawCircle(Offset(x+20,y+20),10,p);
+    } else if(style==7){
+      for(double x=20;x<size.width;x+=80) { canvas.drawCircle(Offset(x,42),20,p); canvas.drawLine(Offset(x-24,70),Offset(x+24,70),p); }
+    } else if(style==8){
+      for(double x=-size.height;x<size.width;x+=70) canvas.drawLine(Offset(x,0),Offset(x+size.height,size.height),p);
+    } else if(style==9){
+      for(double y=18;y<size.height;y+=42) canvas.drawLine(Offset(0,y),Offset(size.width,y),p);
     }
   }
   @override bool shouldRepaint(covariant _MemoryPatternPainter old) => old.color!=color || old.style!=style;
@@ -2067,7 +2079,7 @@ class SettingsPage extends StatelessWidget {
     const Text('Professional controls', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800)),
     const SizedBox(height: 14),    Card(child:ListTile(leading:const Icon(Icons.palette_outlined),title:const Text('Comic app theme'),subtitle:Text(comicThemes[themeIndex].name),onTap:()=>showModalBottomSheet(context:context,builder:(_)=>SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[const Text('Choose your comic style',style:TextStyle(fontSize:22,fontWeight:FontWeight.w900)),const SizedBox(height:12),...List.generate(comicThemes.length,(i)=>Card(child:RadioListTile<int>(value:i,groupValue:themeIndex,title:Text(comicThemes[i].name),secondary:CircleAvatar(backgroundColor:comicThemes[i].seed),onChanged:(v){if(v!=null){onTheme(v);Navigator.pop(context);}})))]))))),
     Card(child: SwitchListTile(value: dark, onChanged: onDark, title: const Text('Dark mode'), secondary: const Icon(Icons.dark_mode_outlined))),
-    Card(child: ListTile(title: const Text('Gallery grid size'), subtitle: Slider(value: grid.toDouble(), min: 2, max: 6, divisions: 4, label: grid.toString() + ' columns', onChanged: (v) => onGrid(v.round())), trailing: Text(grid.toString() + '×'))),
+    Card(child: ListTile(title: const Text('Gallery grid size'), subtitle: Slider(value: grid.clamp(2,8).toDouble(), min: 2, max: 8, divisions: 6, label: grid.toString() + ' columns', onChanged: (v) => onGrid(v.round())), trailing: Text(grid.toString() + '×'))),
     Card(child: ListTile(leading: const Icon(Icons.child_care_outlined), title: Text(childName), subtitle: Text(childBirthday.isEmpty ? 'Add birthday and milestones' : 'Birthday: $childBirthday'), onTap: onChildEdit)),
     Card(child: ListTile(leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Connect to Windows PC'), subtitle: const Text('Pair on the same Wi-Fi and transfer photos from your phone to your PC.'), trailing: const Icon(Icons.qr_code_2), onTap: onPcConnect)),
     Card(child: ListTile(leading: const Icon(Icons.backup_outlined), title: const Text('Backup Center'), subtitle: Text(backupHistory.isEmpty ? 'No PC backups recorded yet.' : 'Last backup: ${backupHistory.first.substring(0, 16).replaceAll('T', ' ')}'), trailing: const Icon(Icons.chevron_right), onTap: onBackup)),
