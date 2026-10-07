@@ -1508,6 +1508,70 @@ class _HomeState extends State<Home> {
 }
 
 
+
+class DeviceAlbumPage extends StatefulWidget {
+  final List<AssetPathEntity> paths;
+  final String title;
+  final int grid;
+  final Set<String> hiddenIds;
+  const DeviceAlbumPage({super.key, required this.paths, required this.title, required this.grid, required this.hiddenIds});
+  @override State<DeviceAlbumPage> createState() => _DeviceAlbumPageState();
+}
+
+class _DeviceAlbumPageState extends State<DeviceAlbumPage> {
+  List<AssetEntity> assets = [];
+  bool loading = true;
+
+  @override void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final out = <AssetEntity>[];
+    final seen = <String>{};
+    for (final path in widget.paths) {
+      var page = 0;
+      while (true) {
+        final batch = await path.getAssetListPaged(page: page, size: 200);
+        if (batch.isEmpty) break;
+        for (final a in batch) {
+          if (seen.add(a.id)) out.add(a);
+        }
+        if (batch.length < 200) break;
+        page++;
+      }
+    }
+    out.sort((a,b) => b.createDateTime.compareTo(a.createDateTime));
+    if (mounted) setState(() { assets = out; loading = false; });
+  }
+
+  @override Widget build(BuildContext context) {
+    final visible = assets.where((a) => !widget.hiddenIds.contains(a.id)).toList();
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.title), actions: [
+        Padding(padding: const EdgeInsets.only(right: 16), child: Center(child: Text(visible.length.toString()))),
+      ]),
+      body: loading
+        ? const Center(child: CircularProgressIndicator())
+        : visible.isEmpty
+          ? const Center(child: Text('No photos in this folder.'))
+          : GridView.builder(
+              padding: const EdgeInsets.all(5),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: widget.grid.clamp(2, 8),
+                crossAxisSpacing: 4, mainAxisSpacing: 4,
+              ),
+              itemCount: visible.length,
+              itemBuilder: (_, i) => GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CinematicViewer(
+                  asset: visible[i], all: visible,
+                  onEdit: (_) async {}, onShare: (_) async {},
+                ))),
+                child: ClipRRect(borderRadius: BorderRadius.circular(6), child: Thumb(visible[i])),
+              ),
+            ),
+    );
+  }
+}
+
 class PcConnectPage extends StatefulWidget {
   final List<AssetEntity> photos;
   final List<Timeline> timelines;
