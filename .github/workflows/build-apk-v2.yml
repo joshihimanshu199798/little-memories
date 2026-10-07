@@ -45,6 +45,9 @@ jobs:
           wc -l lib/main.dart
           sha256sum lib/main.dart
 
+      - name: Analyze Dart source
+        run: flutter analyze
+
       - name: Build APK
         run: flutter build apk --release
 
