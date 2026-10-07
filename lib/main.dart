@@ -522,6 +522,38 @@ class _HomeState extends State<Home> {
     MaterialPageRoute(builder: (_) => Viewer(asset: a, all: list, onEdit: _openPhotoEditor, onShare: (x) => _share([x], 'Shared from Little Memories'))));
 
 
+  Widget _smartAlbums() {
+    final groups = <String, List<AssetEntity>>{};
+    for (final a in photos) {
+      final d = a.createDateTime;
+      final key = '\${d.year}-\${d.month.toString().padLeft(2, '0')}';
+      groups.putIfAbsent(key, () => []).add(a);
+    }
+    final entries = groups.entries.take(6).toList();
+    if (entries.isEmpty) return const SizedBox.shrink();
+    return Column(children: [
+      _sectionTitle('Smart albums', () => setState(() => showAllPhotos = true)),
+      SizedBox(height: 132, child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16), scrollDirection: Axis.horizontal,
+        itemCount: entries.length, separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (_, i) {
+          final e = entries[i]; final parts = e.key.split('-');
+          final label = '\${parts[0]} • \${_monthName(int.parse(parts[1]))}';
+          return GestureDetector(onTap: () => _openPhoto(e.value.first, e.value), child: SizedBox(width: 150,
+            child: ClipRRect(borderRadius: BorderRadius.circular(16), child: Stack(fit: StackFit.expand, children: [
+              Thumb(e.value.first),
+              Positioned(left: 10, right: 10, bottom: 10, child: Text('$label\\n\${e.value.length} memories', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, shadows: [Shadow(blurRadius: 6)]))),
+            ])),));
+        },
+      )),
+    ]);
+  }
+
+  String _monthName(int month) {
+    const names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    return names[month - 1];
+  }
+
   Widget _memoryStrip(List<AssetEntity> items, {String emptyText = 'No memories yet'}) {
     if (items.isEmpty) return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
@@ -616,6 +648,7 @@ class _HomeState extends State<Home> {
           ),
           _sectionTitle('Recent memories', () => setState(() => showAllPhotos = true)),
           _memoryStrip(recent, emptyText: 'Add photos to your phone gallery to see them here.'),
+          _smartAlbums(),
           if (favs.isNotEmpty) ...[
             _sectionTitle('Favorite memories', () => setState(() => tab = 2)),
             _memoryStrip(favs),
