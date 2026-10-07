@@ -277,7 +277,7 @@ class _AppState extends State<LittleMemoriesApp> {
       switchTheme:SwitchThemeData(thumbColor:WidgetStatePropertyAll(scheme.primary),trackColor:WidgetStatePropertyAll(scheme.primary.withValues(alpha:.22))),
       checkboxTheme:CheckboxThemeData(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==0?7:4))),
       radioTheme:RadioThemeData(fillColor:WidgetStatePropertyAll(scheme.primary)),
-      dividerTheme:DividerThemeData(color:scheme.outlineVariant.withValues(alpha:.55),thickness:t.style==5?.7:1),
+      dividerTheme:DividerThemeData(color:scheme.outlineVariant.withValues(alpha:.55),thickness:t.style==5 ? .7 : 1),
       snackBarTheme:SnackBarThemeData(behavior:SnackBarBehavior.floating,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius)),contentTextStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w700)),
     );
   }
@@ -1135,7 +1135,7 @@ class _HomeState extends State<Home> {
             Container(
               decoration:BoxDecoration(
                 borderRadius:BorderRadius.circular(_themeRadius()),
-                border:Border.all(color:Theme.of(context).colorScheme.outlineVariant.withValues(alpha:widget.themeIndex==3?.9:.35),width:widget.themeIndex==3?4:1),
+                border:Border.all(color:Theme.of(context).colorScheme.outlineVariant.withValues(alpha:widget.themeIndex==3 ? .9 : .35),width:widget.themeIndex==3?4:1),
                 boxShadow:widget.themeIndex==4?[BoxShadow(color:Theme.of(context).colorScheme.primary.withValues(alpha:.20),blurRadius:12,spreadRadius:1)]:(widget.themeIndex==1?[const BoxShadow(blurRadius:3,offset:Offset(1,2),color:Color(0x22000000))]:const[]),
               ),
               child:ClipRRect(borderRadius:BorderRadius.circular(_themeRadius()-1),child:Thumb(a)),
@@ -1368,7 +1368,7 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage>{
     return Scaffold(
       appBar:AppBar(
         title:Text(selecting?selected.length.toString()+' selected':widget.name),
-        actions:selecting?[
+        actions:selecting ? [
           IconButton(onPressed:removeSelected,tooltip:'Remove from album',icon:const Icon(Icons.remove_circle_outline)),
           IconButton(onPressed:deleteSelected,tooltip:'Delete photos',icon:const Icon(Icons.delete_outline)),
           IconButton(onPressed:()=>setState((){selected.clear();selecting=false;}),icon:const Icon(Icons.close)),
@@ -1389,13 +1389,13 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage>{
           gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:widget.grid,crossAxisSpacing:6,mainAxisSpacing:6),
           itemCount:widget.photos.length,
           itemBuilder:(_,i){
-            final a=widget.photos[i],is=selected.contains(a.id);
+            final a=widget.photos[i],isSelected=selected.contains(a.id);
             return GestureDetector(
               onTap:()=>selecting?toggle(a):Navigator.push(context,MaterialPageRoute(builder:(_)=>Viewer(asset:a,all:widget.photos,onEdit:(_)=>Future.value(),onShare:(_)=>Future.value())),
               onLongPress:()=>setState((){selecting=true;toggle(a);}),
               child:Stack(fit:StackFit.expand,children:[
                 ClipRRect(borderRadius:BorderRadius.circular(10),child:Thumb(a)),
-                if(is)Positioned.fill(child:Container(
+                if(isSelected)Positioned.fill(child:Container(
                   decoration:BoxDecoration(color:Theme.of(context).colorScheme.primary.withValues(alpha:.26),border:Border.all(color:Theme.of(context).colorScheme.primary,width:3),borderRadius:BorderRadius.circular(12)),
                   child:const Align(alignment:Alignment.topRight,child:Padding(padding:EdgeInsets.all(6),child:CircleAvatar(radius:13,child:Icon(Icons.check,size:16)))),
                 )),
