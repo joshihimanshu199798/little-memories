@@ -36,6 +36,7 @@ class PcConnectService {
   final VoidCallback onConnected;
   final VoidCallback onBackupStarted;
   HttpServer? _server;
+  RawDatagramSocket? _discoverySocket;
   String? url;
   final String token = List.generate(18, (_) => Random.secure().nextInt(16).toRadixString(16)).join();
   final String pairingKey;
@@ -64,6 +65,28 @@ class PcConnectService {
     final ip = await _findLocalIp();
     if (ip == null) { await stop(); throw StateError('Could not find a Wi-Fi network address.'); }
     url = 'http://${ip}:${_server!.port}/?token=${token}&pair=${Uri.encodeQueryComponent(pairingKey)}';
+    await _startDiscoveryResponder();
+  }
+
+  Future<void> _startDiscoveryResponder() async {
+    try {
+      _discoverySocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 47833);
+      _discoverySocket!.broadcastEnabled = true;
+      _discoverySocket!.listen((event) {
+        if (event != RawSocketEvent.read) return;
+        final d = _discoverySocket!.receive();
+        if (d == null) return;
+        final message = utf8.decode(d.data, allowMalformed: true);
+        if (!message.startsWith('LITTLE_MEMORIES_DISCOVER_V1|')) return;
+        final suppliedPair = message.substring('LITTLE_MEMORIES_DISCOVER_V1|'.length);
+        if (suppliedPair != pairingKey || _server == null) return;
+        final host = d.address.address;
+        final response = jsonEncode({'service': 'Little Memories', 'version': 1, 'port': _server!.port, 'pair': pairingKey});
+        _discoverySocket!.send(utf8.encode(response), d.address, d.port);
+      });
+    } catch (_) {
+      _discoverySocket = null;
+    }
   }
 
   Future<String?> _findLocalIp() async {
@@ -184,6 +207,8 @@ load();
   }
 
   Future<void> stop() async {
+    _discoverySocket?.close();
+    _discoverySocket = null;
     final s = _server; _server = null; url = null;
     if (s != null) await s.close(force: true);
   }
