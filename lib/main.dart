@@ -218,20 +218,103 @@ load();
   }
 }
 
-class ComicTheme { final String name; final Color seed; final Color background; final Color surface; final double radius; const ComicTheme(this.name,this.seed,this.background,this.surface,this.radius); }
-const comicThemes=<ComicTheme>[ComicTheme('Comic Pop',Color(0xFFE85D75),Color(0xFFFFF8F0),Color(0xFFFFFFFF),22),ComicTheme('Sky Doodle',Color(0xFF3B82F6),Color(0xFFF3FAFF),Color(0xFFFFFFFF),22),ComicTheme('Mint Story',Color(0xFF10A77A),Color(0xFFF1FFF8),Color(0xFFFFFFFF),22),ComicTheme('Purple Comic',Color(0xFF8B5CF6),Color(0xFFF8F5FF),Color(0xFFFFFFFF),22),ComicTheme('Sunshine',Color(0xFFF59E0B),Color(0xFFFFFCF0),Color(0xFFFFFFFF),22)];
+class ComicTheme {
+  final String name;
+  final String subtitle;
+  final Color seed;
+  final Color background;
+  final Color surface;
+  final double radius;
+  final int style;
+  const ComicTheme(this.name,this.subtitle,this.seed,this.background,this.surface,this.radius,this.style);
+}
+const comicThemes=<ComicTheme>[
+  ComicTheme('Comic Pop','Bold bubbles, stickers and playful cards',Color(0xFFE85D75),Color(0xFFFFF8F0),Color(0xFFFFFFFF),22,0),
+  ComicTheme('Scrapbook','Paper layers, tape and handmade memories',Color(0xFFB86B45),Color(0xFFF5EBDD),Color(0xFFFFFCF5),14,1),
+  ComicTheme('Watercolor','Soft painted pages and airy photo frames',Color(0xFF4C8DCE),Color(0xFFF2F8FB),Color(0xFFFFFFFF),26,2),
+  ComicTheme('Polaroid','Classic photo-book pages and film frames',Color(0xFF6B6258),Color(0xFFECE7DE),Color(0xFFFFFEFA),8,3),
+  ComicTheme('Midnight','Cinematic dark gallery with glowing accents',Color(0xFF8B7CFF),Color(0xFF090B14),Color(0xFF151927),18,4),
+  ComicTheme('Minimal','Clean editorial photo library with calm spacing',Color(0xFF3D6B5B),Color(0xFFF7F8F6),Color(0xFFFFFFFF),12,5),
+];
 
 class LittleMemoriesApp extends StatefulWidget {
   const LittleMemoriesApp({super.key});
   @override State<LittleMemoriesApp> createState() => _AppState();
 }
 class _AppState extends State<LittleMemoriesApp> {
-  bool dark = false; int themeIndex = 0;
-  @override Widget build(BuildContext context) { final t=comicThemes[themeIndex.clamp(0,comicThemes.length-1)]; return MaterialApp(
-    debugShowCheckedModeBanner: false,
-    title: 'Little Memories',
-    theme: ThemeData(useMaterial3:true,colorSchemeSeed:t.seed,scaffoldBackgroundColor:t.background,cardTheme:CardThemeData(color:t.surface,elevation:0,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.radius),side:BorderSide(color:t.seed.withValues(alpha:.18),width:2))),appBarTheme:AppBarTheme(backgroundColor:t.background,elevation:0),filledButtonTheme:FilledButtonThemeData(style:FilledButton.styleFrom(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(16),side:BorderSide(color:t.seed,width:1.5))))),
-    darkTheme:ThemeData.dark(useMaterial3:true).copyWith(colorScheme:ColorScheme.fromSeed(seedColor:t.seed,brightness:Brightness.dark)),themeMode:dark?ThemeMode.dark:ThemeMode.light,home:Home(themeIndex:themeIndex,onDark:(v)=>setState(()=>dark=v),onTheme:(v) async {final p=await SharedPreferences.getInstance();await p.setInt('comicTheme',v);if(mounted)setState(()=>themeIndex=v);}),); }
+  bool dark = false;
+  int themeIndex = 0;
+  @override void initState(){super.initState();_loadTheme();}
+  Future<void> _loadTheme() async {
+    final p=await SharedPreferences.getInstance();
+    final saved=p.getInt('comicTheme')??0;
+    if(mounted)setState(()=>themeIndex=saved.clamp(0,comicThemes.length-1));
+  }
+  ThemeData _buildTheme(ComicTheme t,bool isDark){
+    final scheme=ColorScheme.fromSeed(seedColor:t.seed,brightness:isDark?Brightness.dark:Brightness.light);
+    final cardRadius=t.style==1?14.0:t.radius;
+    final cardBorder=t.style==3?BorderSide(color:scheme.outlineVariant.withValues(alpha:.7),width:1):BorderSide(color:scheme.primary.withValues(alpha:.16),width:t.style==4?1:2);
+    final elevation=t.style==1?1.5:(t.style==2?2:0);
+    return ThemeData(
+      useMaterial3:true,
+      colorScheme:scheme,
+      scaffoldBackgroundColor:t.background,
+      cardTheme:CardThemeData(color:t.surface,elevation:elevation,margin:EdgeInsets.zero,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(cardRadius),side:cardBorder)),
+      appBarTheme:AppBarTheme(backgroundColor:t.background,surfaceTintColor:Colors.transparent,elevation:0,centerTitle:t.style==3||t.style==4,titleTextStyle:TextStyle(fontSize:t.style==4?21:20,fontWeight:t.style==5?FontWeight.w700:FontWeight.w900,color:scheme.onSurface)),
+      navigationBarTheme:NavigationBarThemeData(height:t.style==1?76:72,backgroundColor:t.style==4?t.surface:t.background,indicatorColor:scheme.primary.withValues(alpha:t.style==3?.16:.20),labelTextStyle:WidgetStatePropertyAll(TextStyle(fontWeight:t.style==5?FontWeight.w600:FontWeight.w800,fontSize:12))),
+      floatingActionButtonTheme:FloatingActionButtonThemeData(backgroundColor:scheme.primary,foregroundColor:scheme.onPrimary,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==3?12:18))),
+      filledButtonTheme:FilledButtonThemeData(style:FilledButton.styleFrom(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==3?10:t.style==1?14:17),side:t.style==0?BorderSide(color:scheme.primary,width:1.2):BorderSide.none),padding:const EdgeInsets.symmetric(horizontal:18,vertical:13))),
+      inputDecorationTheme:InputDecorationTheme(filled:true,fillColor:t.surface.withValues(alpha:isDark?.85:.92),border:OutlineInputBorder(borderRadius:BorderRadius.circular(t.style==3?10:16),borderSide:BorderSide(color:scheme.outlineVariant)),enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(t.style==3?10:16),borderSide:BorderSide(color:scheme.outlineVariant))),
+      chipTheme:ChipThemeData(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==3?8:14)),side:BorderSide(color:scheme.outlineVariant)),
+      listTileTheme:ListTileThemeData(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(cardRadius)),contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:2)),
+      dialogTheme:DialogThemeData(backgroundColor:t.surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==3?14:24))),
+      bottomSheetTheme:BottomSheetThemeData(backgroundColor:t.surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.vertical(top:Radius.circular(t.style==3?16:28)))),
+      dividerTheme:DividerThemeData(color:scheme.outlineVariant.withValues(alpha:.55),thickness:t.style==5?.7:1),
+      snackBarTheme:SnackBarThemeData(behavior:SnackBarBehavior.floating,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(14))),
+    );
+  }
+  @override Widget build(BuildContext context){
+    final t=comicThemes[themeIndex.clamp(0,comicThemes.length-1)];
+    return MaterialApp(
+      debugShowCheckedModeBanner:false,
+      title:'Little Memories',
+      theme:_buildTheme(t,false),
+      darkTheme:_buildTheme(t,true),
+      themeMode:dark?ThemeMode.dark:ThemeMode.light,
+      home:Home(themeIndex:themeIndex,onDark:(v)=>setState(()=>dark=v),onTheme:(v)async{final p=await SharedPreferences.getInstance();await p.setInt('comicTheme',v);if(mounted)setState(()=>themeIndex=v);}),
+    );
+  }
+}
+
+class ThemeBackdrop extends StatelessWidget{
+  final int style; final Widget child;
+  const ThemeBackdrop({super.key,required this.style,required this.child});
+  @override Widget build(BuildContext context){
+    final t=comicThemes[style.clamp(0,comicThemes.length-1)];
+    final on=Theme.of(context).colorScheme.onSurface;
+    return Stack(children:[
+      Positioned.fill(child:ColoredBox(color:t.background)),
+      if(style==0)...[
+        Positioned(top:-30,right:-18,child:Icon(Icons.auto_awesome_rounded,size:110,color:t.seed.withValues(alpha:.08))),
+        Positioned(bottom:90,left:-30,child:Icon(Icons.bubble_chart_rounded,size:100,color:t.seed.withValues(alpha:.07))),
+      ],
+      if(style==1)...[
+        Positioned(top:8,right:18,child:Transform.rotate(angle:.12,child:Icon(Icons.local_offer_rounded,size:54,color:t.seed.withValues(alpha:.12)))),
+        Positioned(bottom:120,left:12,child:Transform.rotate(angle:-.10,child:Icon(Icons.favorite_rounded,size:44,color:t.seed.withValues(alpha:.10)))),
+      ],
+      if(style==2)...[
+        Positioned(top:-35,left:-30,child:Container(width:150,height:150,decoration:BoxDecoration(shape:BoxShape.circle,color:t.seed.withValues(alpha:.08)))),
+        Positioned(bottom:80,right:-45,child:Container(width:180,height:180,decoration:BoxDecoration(shape:BoxShape.circle,color:t.seed.withValues(alpha:.06)))),
+      ],
+      if(style==3)Positioned(top:0,right:0,child:Icon(Icons.camera_alt_outlined,size:100,color:on.withValues(alpha:.035))),
+      if(style==4)...[
+        Positioned(top:70,left:-35,child:Container(width:150,height:150,decoration:BoxDecoration(shape:BoxShape.circle,color:t.seed.withValues(alpha:.10)))),
+        Positioned(bottom:110,right:-30,child:Container(width:130,height:130,decoration:BoxDecoration(shape:BoxShape.circle,color:t.seed.withValues(alpha:.08)))),
+      ],
+      if(style==5)Positioned(top:70,right:14,child:Icon(Icons.grid_4x4_rounded,size:78,color:t.seed.withValues(alpha:.035))),
+      Positioned.fill(child:child),
+    ]);
+  }
 }
 
 class Home extends StatefulWidget {
@@ -250,7 +333,7 @@ class _HomeState extends State<Home> {
   Map<String, String> names = {}, captions = {};
   List<String> backupHistory = [];
   bool selectionMode = false;
-  Set<String> selectedIds = {};  String childName = 'My Little Star', childBirthday = '';  String searchQuery = '';
+  Set<String> selectedIds = {};  String childName = 'My Little Star', childBirthday = '';  String searchQuery = '';\n  Map<String, List<String>> memoryAlbums = {};
   bool showAllPhotos = false;
   Set<String> hiddenIds = {};
   int galleryFilter = 0;
@@ -321,7 +404,7 @@ class _HomeState extends State<Home> {
     await p.setInt('galleryFilter', galleryFilter);
     await p.setInt('grid', grid);
     await p.setString('childName', childName);
-    await p.setString('childBirthday', childBirthday);
+    await p.setString('childBirthday', childBirthday);\n    await p.setString('memoryAlbums', jsonEncode(memoryAlbums));
   }
 
   AssetEntity? _find(String id) {
@@ -347,6 +430,77 @@ class _HomeState extends State<Home> {
 
   void _clearSelection() {
     setState(() { selectedIds.clear(); selectionMode = false; });
+  }
+
+  Future<void> _bulkDelete() async {
+    if(selectedIds.isEmpty)return;
+    final count=selectedIds.length;
+    final ok=await showDialog<bool>(context:context,builder:(_)=>AlertDialog(
+      title:Text('Delete '+count.toString()+' photos?'),
+      content:const Text('These photos will be removed from the phone gallery. App metadata for them will also be cleaned up.'),
+      actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('Cancel')),FilledButton.icon(onPressed:()=>Navigator.pop(context,true),icon:const Icon(Icons.delete_outline),label:const Text('Delete'))],
+    ))??false;
+    if(!ok)return;
+    try{
+      final deleted=await PhotoManager.editor.deleteWithIds(selectedIds.toList());
+      setState((){
+        for(final id in deleted){
+          favorites.remove(id);names.remove(id);captions.remove(id);hiddenIds.remove(id);
+          for(final album in memoryAlbums.values){album.remove(id);}
+        }
+        photos.removeWhere((a)=>deleted.contains(a.id));
+      });
+      await _save();_clearSelection();
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(deleted.length.toString()+' photos deleted')));
+    }catch(e){
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Could not delete photos: '+e.toString())));
+    }
+  }
+
+  Future<void> _createAlbum() async {
+    final c=TextEditingController();
+    final name=await showDialog<String>(context:context,builder:(_)=>AlertDialog(
+      title:const Text('Create album'),
+      content:TextField(controller:c,autofocus:true,decoration:const InputDecoration(labelText:'Album name',hintText:'e.g. Sarthak 1st Birthday')),
+      actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(context,c.text.trim()),child:const Text('Create'))],
+    ));
+    final n=name?.trim()??'';
+    if(n.isEmpty)return;
+    if(memoryAlbums.containsKey(n)){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('An album with this name already exists.')));return;}
+    setState(()=>memoryAlbums[n]=[]);
+    await _save();
+  }
+
+  Future<void> _addSelectedToAlbum() async {
+    if(selectedIds.isEmpty)return;
+    if(memoryAlbums.isEmpty)await _createAlbum();
+    if(memoryAlbums.isEmpty)return;
+    final album=await showDialog<String>(context:context,builder:(_)=>SimpleDialog(
+      title:const Text('Add selected photos to'),
+      children:memoryAlbums.keys.map((name)=>SimpleDialogOption(onPressed:()=>Navigator.pop(context,name),child:ListTile(leading:const Icon(Icons.photo_album_outlined),title:Text(name),subtitle:Text(memoryAlbums[name]!.length.toString()+' photos')))).toList(),
+    ));
+    if(album==null)return;
+    setState(()=>memoryAlbums[album]=<String>{...memoryAlbums[album]!,...selectedIds}.toList());
+    await _save();
+    final count=selectedIds.length;_clearSelection();
+    if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(count.toString()+' photos added to '+album)));
+  }
+
+  Future<void> _openCustomAlbum(String albumName) async {
+    final ids=memoryAlbums[albumName]??[];
+    final assets=ids.map(_find).whereType<AssetEntity>().toList();
+    await Navigator.push(context,MaterialPageRoute(builder:(_)=>MemoryAlbumPage(
+      name:albumName,photos:assets,grid:grid,
+      onRemove:(asset)async{setState(()=>memoryAlbums[albumName]=List<String>.from(memoryAlbums[albumName]??[])..remove(asset.id));await _save();},
+      onDelete:(asset)async{
+        final deleted=await PhotoManager.editor.deleteWithIds([asset.id]);
+        if(deleted.isNotEmpty){setState((){
+          photos.removeWhere((a)=>a.id==asset.id);favorites.remove(asset.id);names.remove(asset.id);captions.remove(asset.id);hiddenIds.remove(asset.id);
+          memoryAlbums.forEach((k,v)=>v.remove(asset.id));
+        });await _save();}
+      },
+    )));
+    if(mounted)setState((){});
   }
 
   Future<void> _bulkFavorite() async {
@@ -808,20 +962,6 @@ class _HomeState extends State<Home> {
         children: [
           _experienceHeader(),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Card(
-              elevation: 0,
-              color: Theme.of(context).colorScheme.primaryContainer,
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-                leading: const CircleAvatar(child: Icon(Icons.child_care_outlined)),
-                title: Text('Hello, ' + childName + ' ❤️', style: const TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: Text(photos.isEmpty ? 'Your memory story starts here.' : photos.length.toString() + ' memories waiting to be rediscovered.'),
-                trailing: IconButton(onPressed: _editChildProfile, icon: const Icon(Icons.edit_outlined)),
-              ),
-            ),
-          ),
-          Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
             child: Row(children: [
               Expanded(child: _statCard(Icons.photo_library_outlined, photos.length.toString(), 'Memories')),
@@ -883,17 +1023,43 @@ class _HomeState extends State<Home> {
     final groups=<String,List<AssetEntity>>{};
     for(final a in photos){final d=a.createDateTime;final k=d.year.toString()+'-'+d.month.toString().padLeft(2,'0');groups.putIfAbsent(k,()=>[]).add(a);}
     final entries=groups.entries.toList()..sort((a,b)=>b.key.compareTo(a.key));
+    final custom=memoryAlbums.entries.toList()..sort((a,b)=>a.key.compareTo(b.key));
     return ListView(padding:const EdgeInsets.fromLTRB(16,12,16,30),children:[
-      Row(children:[Expanded(child:Text('Albums',style:const TextStyle(fontSize:30,fontWeight:FontWeight.w900))),Icon(Icons.auto_stories_rounded,color:Theme.of(context).colorScheme.primary)]),
-      const SizedBox(height:6),Text('Your memories, organized into colorful comic-style chapters.',style:TextStyle(color:Theme.of(context).colorScheme.onSurfaceVariant)),
+      Row(children:[Expanded(child:Text('Albums',style:const TextStyle(fontSize:30,fontWeight:FontWeight.w900))),FilledButton.tonalIcon(onPressed:_createAlbum,icon:const Icon(Icons.add),label:const Text('New album'))]),
+      const SizedBox(height:6),
+      Text('Create your own memory books, then add many photos at once.',style:TextStyle(color:Theme.of(context).colorScheme.onSurfaceVariant)),
       const SizedBox(height:14),
-      Row(children:[Expanded(child:FilledButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>DuplicatePhotosPage(photos:photos))),icon:const Icon(Icons.copy_all_outlined),label:const Text('Duplicates'))),const SizedBox(width:10),Expanded(child:FilledButton.tonalIcon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>BlurryPhotosPage(photos:photos))),icon:const Icon(Icons.blur_on),label:const Text('Blurry')))]),
-      const SizedBox(height:14),
-      ...entries.map((e){final parts=e.key.split('-');final title=parts[0]+' • '+_monthName(int.parse(parts[1]));return Card(clipBehavior:Clip.antiAlias,child:InkWell(onTap:()=>_openPhoto(e.value.first,e.value),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[SizedBox(height:190,width:double.infinity,child:Stack(fit:StackFit.expand,children:[Thumb(e.value.first),Positioned(left:12,bottom:12,child:DecoratedBox(decoration:BoxDecoration(color:Colors.black54,borderRadius:BorderRadius.circular(12)),child:Padding(padding:const EdgeInsets.symmetric(horizontal:12,vertical:7),child:Text(title,style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w900,fontSize:16)))))])),Padding(padding:const EdgeInsets.all(14),child:Row(children:[Expanded(child:Text(e.value.length.toString()+' memories',style:const TextStyle(fontWeight:FontWeight.w800))),const Icon(Icons.chevron_right)]))])));})
+      Row(children:[
+        Expanded(child:FilledButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>DuplicatePhotosPage(photos:photos))),icon:const Icon(Icons.copy_all_outlined),label:const Text('Duplicates'))),
+        const SizedBox(width:10),
+        Expanded(child:FilledButton.tonalIcon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>BlurryPhotosPage(photos:photos))),icon:const Icon(Icons.blur_on),label:const Text('Blurry'))]),
+      if(custom.isNotEmpty)...[
+        const SizedBox(height:20),const Text('My albums',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900)),const SizedBox(height:8),
+        ...custom.map((e){
+          final imgs=e.value.map(_find).whereType<AssetEntity>().take(4).toList();
+          return Card(clipBehavior:Clip.antiAlias,margin:const EdgeInsets.only(bottom:12),child:InkWell(onTap:()=>_openCustomAlbum(e.key),child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[
+            SizedBox(width:94,height:82,child:Stack(children:[
+              for(int i=0;i<imgs.length&&i<3;i++)Positioned(left:i*15.0,top:i*3.0,child:Transform.rotate(angle:(i-1)*.045,child:SizedBox(width:76,height:76,child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Thumb(imgs[i]))))),
+              if(imgs.isEmpty)Container(width:76,height:76,decoration:BoxDecoration(color:Theme.of(context).colorScheme.surfaceContainerHighest,borderRadius:BorderRadius.circular(12)),child:const Icon(Icons.photo_album_outlined)),
+            ])),
+            const SizedBox(width:8),
+            Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(e.key,style:const TextStyle(fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:4),Text(e.value.length.toString()+' photos',style:TextStyle(color:Theme.of(context).colorScheme.onSurfaceVariant))])),
+            PopupMenuButton<String>(onSelected:(v)async{if(v=='delete'){setState(()=>memoryAlbums.remove(e.key));await _save();}},itemBuilder:(_)=>const[PopupMenuItem(value:'delete',child:Text('Delete album'))]),
+          ]))));
+        }),
+      ],
+      const SizedBox(height:20),const Text('Smart albums',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900)),const SizedBox(height:8),
+      ...entries.map((e){
+        final parts=e.key.split('-');final title=parts[0]+' • '+_monthName(int.parse(parts[1]));
+        return Card(clipBehavior:Clip.antiAlias,margin:const EdgeInsets.only(bottom:12),child:InkWell(onTap:()=>_openPhoto(e.value.first,e.value),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          SizedBox(height:190,width:double.infinity,child:Stack(fit:StackFit.expand,children:[Thumb(e.value.first),Positioned(left:12,bottom:12,child:DecoratedBox(decoration:BoxDecoration(color:Colors.black54,borderRadius:BorderRadius.circular(12)),child:Padding(padding:const EdgeInsets.symmetric(horizontal:12,vertical:7),child:Text(title,style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w900,fontSize:16)))))])),
+          Padding(padding:const EdgeInsets.all(14),child:Row(children:[Expanded(child:Text(e.value.length.toString()+' memories',style:const TextStyle(fontWeight:FontWeight.w800))),const Icon(Icons.chevron_right)])),
+        ])));
+      }),
     ]);
   }
 
-  Widget _gallery({bool onlyFavorites = false}) {
+  double _themeRadius()=>comicThemes[widget.themeIndex.clamp(0,comicThemes.length-1)].radius;\n  Widget _themedBody(Widget child)=>ThemeBackdrop(style:widget.themeIndex,child:child);\n\n  Widget _gallery({bool onlyFavorites = false}) {
     final q = searchQuery.trim().toLowerCase();
     final storyIds = timelines.expand((t) => t.assets).toSet();
     var source = photos.where((a) => !hiddenIds.contains(a.id)).toList();
@@ -917,7 +1083,14 @@ class _HomeState extends State<Home> {
           onTap: () => selectionMode ? _toggleSelection(a) : _openPhoto(a, source),
           onLongPress: () => _toggleSelection(a),
           child: Stack(fit: StackFit.expand, children: [
-            ClipRRect(borderRadius: BorderRadius.circular(9), child: Thumb(a)),
+            Container(
+              decoration:BoxDecoration(
+                borderRadius:BorderRadius.circular(_themeRadius()),
+                border:Border.all(color:Theme.of(context).colorScheme.outlineVariant.withValues(alpha:widget.themeIndex==3?.9:.35),width:widget.themeIndex==3?4:1),
+                boxShadow:widget.themeIndex==4?[BoxShadow(color:Theme.of(context).colorScheme.primary.withValues(alpha:.20),blurRadius:12,spreadRadius:1)]:(widget.themeIndex==1?[const BoxShadow(blurRadius:3,offset:Offset(1,2),color:Color(0x22000000))]:const[]),
+              ),
+              child:ClipRRect(borderRadius:BorderRadius.circular(_themeRadius()-1),child:Thumb(a)),
+            ),
             if (galleryShowNames && grid <= 3) Positioned(left: 6, right: 6, bottom: 6, child: Text(names[a.id] ?? a.title ?? 'Memory', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, shadows: [Shadow(blurRadius: 6)]))),
             if (fav) const Positioned(right: 6, top: 6, child: Icon(Icons.favorite, color: Colors.white, shadows: [Shadow(blurRadius: 5)])),
             if (selectedIds.contains(a.id)) Positioned.fill(child: Container(
@@ -1063,8 +1236,10 @@ class _HomeState extends State<Home> {
         leading: selectionMode ? IconButton(onPressed: _clearSelection, icon: const Icon(Icons.close)) : null,
         actions: selectionMode
             ? [
+                IconButton(onPressed: _addSelectedToAlbum, tooltip: 'Add to album', icon: const Icon(Icons.playlist_add_outlined)),
                 IconButton(onPressed: _bulkFavorite, tooltip: 'Favorite', icon: const Icon(Icons.favorite_border)),
                 IconButton(onPressed: _bulkShare, tooltip: 'Share', icon: const Icon(Icons.share_outlined)),
+                IconButton(onPressed: _bulkDelete, tooltip: 'Delete photos', icon: const Icon(Icons.delete_outline)),
                 PopupMenuButton<String>(
                   onSelected: (v) {
                     if (v == 'hide') _hideSelected();
@@ -1072,7 +1247,7 @@ class _HomeState extends State<Home> {
                   },
                   itemBuilder: (_) => const [
                     PopupMenuItem(value: 'hide', child: Text('Move to Private / Hidden')),
-                    PopupMenuItem(value: 'all', child: Text('Select all memories')),
+                    PopupMenuItem(value: 'all', child: Text('Select all visible memories')),
                   ],
                 ),
               ]
@@ -1110,6 +1285,67 @@ class _HomeState extends State<Home> {
   }
 }
 
+
+class MemoryAlbumPage extends StatefulWidget {
+  final String name; final List<AssetEntity> photos; final int grid;
+  final Future<void> Function(AssetEntity) onRemove; final Future<void> Function(AssetEntity) onDelete;
+  const MemoryAlbumPage({super.key,required this.name,required this.photos,required this.grid,required this.onRemove,required this.onDelete});
+  @override State<MemoryAlbumPage> createState()=>_MemoryAlbumPageState();
+}
+class _MemoryAlbumPageState extends State<MemoryAlbumPage>{
+  final Set<String> selected={}; bool selecting=false;
+  void toggle(AssetEntity a){setState(()=>selected.contains(a.id)?selected.remove(a.id):selected.add(a.id));}
+  Future<void> removeSelected() async {
+    if(selected.isEmpty)return;
+    final ids=selected.toSet();
+    for(final a in widget.photos.where((x)=>ids.contains(x.id)))await widget.onRemove(a);
+    if(mounted)setState(()=>selected.clear());
+  }
+  Future<void> deleteSelected() async {
+    if(selected.isEmpty)return;
+    final ok=await showDialog<bool>(context:context,builder:(_)=>AlertDialog(
+      title:Text('Delete '+selected.length.toString()+' photos?'),
+      content:const Text('This removes the selected photos from the device, not only from this album.'),
+      actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(context,true),child:const Text('Delete'))],
+    ))??false;
+    if(!ok)return;
+    final ids=selected.toSet();
+    for(final a in widget.photos.where((x)=>ids.contains(x.id)))await widget.onDelete(a);
+    if(mounted)setState(()=>selected.clear());
+  }
+  @override Widget build(BuildContext context){
+    return Scaffold(
+      appBar:AppBar(
+        title:Text(selecting?selected.length.toString()+' selected':widget.name),
+        actions:selecting?[
+          IconButton(onPressed:removeSelected,tooltip:'Remove from album',icon:const Icon(Icons.remove_circle_outline)),
+          IconButton(onPressed:deleteSelected,tooltip:'Delete photos',icon:const Icon(Icons.delete_outline)),
+          IconButton(onPressed:()=>setState(()=>{selected.clear();selecting=false}),icon:const Icon(Icons.close)),
+        ]:[
+          IconButton(onPressed:()=>setState(()=>selecting=true),tooltip:'Select photos',icon:const Icon(Icons.checklist_rounded)),
+        ],
+      ),
+      body:widget.photos.isEmpty
+        ? Center(child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.photo_album_outlined,size:70),const SizedBox(height:12),const Text('This album is empty',style:TextStyle(fontSize:20,fontWeight:FontWeight.w800))]))
+        : GridView.builder(
+          padding:const EdgeInsets.all(8),
+          gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:widget.grid,crossAxisSpacing:6,mainAxisSpacing:6),
+          itemCount:widget.photos.length,
+          itemBuilder:(_,i){
+            final a=widget.photos[i],is=selected.contains(a.id);
+            return GestureDetector(
+              onTap:()=>selecting?toggle(a):Navigator.push(context,MaterialPageRoute(builder:(_)=>Viewer(asset:a,all:widget.photos,onEdit:(_)=>Future.value(),onShare:(_)=>Future.value()))),
+              onLongPress:()=>setState(()=>{selecting=true;toggle(a)}),
+              child:Stack(fit:StackFit.expand,children:[
+                ClipRRect(borderRadius:BorderRadius.circular(10),child:Thumb(a)),
+                if(is)Positioned.fill(child:Container(decoration:BoxDecoration(color:Theme.of(context).colorScheme.primary.withValues(alpha:.26),border:Border.all(color:Theme.of(context).colorScheme.primary,width:3),borderRadius:BorderRadius.circular(12)),child:const Align(alignment:Alignment.topRight,child:Padding(padding:EdgeInsets.all(6),child:CircleAvatar(radius:13,child:Icon(Icons.check,size:16)))))),
+              ]),
+            );
+          },
+        ),
+    );
+  }
+}
 
 class PcConnectPage extends StatefulWidget {
   final List<AssetEntity> photos;
@@ -1530,9 +1766,46 @@ class _ViewerState extends State<Viewer> {
 class SettingsPage extends StatelessWidget {
   final int grid; final bool dark; final int themeIndex; final ValueChanged<int> onGrid; final ValueChanged<int> onTheme; final ValueChanged<bool> onDark; final VoidCallback onShare; final String childName; final String childBirthday; final VoidCallback onChildEdit; final VoidCallback onPcConnect; final VoidCallback onBackup; final List<String> backupHistory;
   const SettingsPage({super.key, required this.grid, required this.dark, required this.themeIndex, required this.onGrid, required this.onTheme, required this.onDark, required this.onShare, required this.childName, required this.childBirthday, required this.onChildEdit, required this.onPcConnect, required this.onBackup, required this.backupHistory});
+  Future<void> _chooseTheme(BuildContext context) async {
+    await showModalBottomSheet(
+      context:context,isScrollControlled:true,
+      builder:(_)=>SafeArea(child:SizedBox(height:MediaQuery.of(context).size.height*.78,child:ListView(
+        padding:const EdgeInsets.fromLTRB(16,18,16,28),
+        children:[
+          const Text('Choose your complete app style',style:TextStyle(fontSize:24,fontWeight:FontWeight.w900)),
+          const SizedBox(height:5),
+          Text('This changes cards, navigation, buttons, photo frames, spacing and the app background — not just the accent colour.',style:TextStyle(color:Theme.of(context).colorScheme.onSurfaceVariant)),
+          const SizedBox(height:16),
+          ...List.generate(comicThemes.length,(i){
+            final t=comicThemes[i],selected=i==themeIndex;
+            return Card(clipBehavior:Clip.antiAlias,color:selected?t.seed.withValues(alpha:.10):null,child:InkWell(
+              onTap:(){onTheme(i);Navigator.pop(context);},
+              child:Padding(padding:const EdgeInsets.all(12),child:Row(children:[
+                Container(width:92,height:76,decoration:BoxDecoration(color:t.background,borderRadius:BorderRadius.circular(t.radius),border:Border.all(color:t.seed.withValues(alpha:.35),width:2)),child:Stack(children:[
+                  Positioned(left:10,top:10,right:10,child:Container(height:14,decoration:BoxDecoration(color:t.seed,borderRadius:BorderRadius.circular(7)))),
+                  Positioned(left:10,bottom:10,child:Container(width:32,height:32,decoration:BoxDecoration(color:t.surface,borderRadius:BorderRadius.circular(t.style==3?6:10),border:Border.all(color:t.seed.withValues(alpha:.25))))),
+                  Positioned(right:10,bottom:10,child:Container(width:32,height:20,decoration:BoxDecoration(color:t.seed.withValues(alpha:.18),borderRadius:BorderRadius.circular(6)))),
+                ])),
+                const SizedBox(width:14),
+                Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(t.name,style:const TextStyle(fontWeight:FontWeight.w900,fontSize:17)),const SizedBox(height:4),Text(t.subtitle,style:TextStyle(fontSize:12,color:Theme.of(context).colorScheme.onSurfaceVariant))])),
+                Icon(selected?Icons.check_circle:Icons.radio_button_unchecked,color:selected?t.seed:Theme.of(context).colorScheme.outline),
+              ])),
+            ));
+          }),
+        ],
+      ))),
+    );
+  }
+
   @override Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(16), children: [
     const Text('Professional controls', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800)),
-    const SizedBox(height: 14),    Card(child:ListTile(leading:const Icon(Icons.palette_outlined),title:const Text('Comic app theme'),subtitle:Text(comicThemes[themeIndex].name),onTap:()=>showModalBottomSheet(context:context,builder:(_)=>SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[const Text('Choose your comic style',style:TextStyle(fontSize:22,fontWeight:FontWeight.w900)),const SizedBox(height:12),...List.generate(comicThemes.length,(i)=>Card(child:RadioListTile<int>(value:i,groupValue:themeIndex,title:Text(comicThemes[i].name),secondary:CircleAvatar(backgroundColor:comicThemes[i].seed),onChanged:(v){if(v!=null){onTheme(v);Navigator.pop(context);}})))]))))),
+    const SizedBox(height: 14),    Card(child:ListTile(
+      leading:CircleAvatar(backgroundColor:comicThemes[themeIndex].seed,child:const Icon(Icons.palette_outlined,color:Colors.white)),
+      title:const Text('App appearance'),
+      subtitle:Text(comicThemes[themeIndex].name+' • full visual theme'),
+      trailing:const Icon(Icons.chevron_right),
+      onTap:()=>_chooseTheme(context),
+    )),
     Card(child: SwitchListTile(value: dark, onChanged: onDark, title: const Text('Dark mode'), secondary: const Icon(Icons.dark_mode_outlined))),
     Card(child: ListTile(title: const Text('Gallery grid size'), subtitle: Slider(value: grid.toDouble(), min: 2, max: 6, divisions: 4, label: grid.toString() + ' columns', onChanged: (v) => onGrid(v.round())), trailing: Text(grid.toString() + '×'))),
     Card(child: ListTile(leading: const Icon(Icons.child_care_outlined), title: Text(childName), subtitle: Text(childBirthday.isEmpty ? 'Add birthday and milestones' : 'Birthday: $childBirthday'), onTap: onChildEdit)),
