@@ -319,7 +319,7 @@ class _HomeState extends State<Home> {
     childBirthday = p.getString('childBirthday') ?? '';
     final albumRaw=p.getString('memoryAlbums');
     if(albumRaw!=null){final decoded=jsonDecode(albumRaw) as Map;memoryAlbums=decoded.map((k,v)=>MapEntry(k,List<String>.from(v)));}
-    setState(() => loading = false);
+    if (mounted) setState(() => loading = false);
   }
 
   Future<void> _refreshPhotos() async {
@@ -341,6 +341,7 @@ class _HomeState extends State<Home> {
   }
 
   Future<void> _requestPhotos() async {
+    if (!mounted) return;
     setState(() => loading = true);
     final permission = await PhotoManager.requestPermissionExtend();
     if (!permission.isAuth && !permission.hasAccess) {
@@ -1443,14 +1444,57 @@ class _MemoryPatternPainter extends CustomPainter {
   @override bool shouldRepaint(covariant _MemoryPatternPainter old) => old.color!=color || old.style!=style;
 }
 
-class Thumb extends StatelessWidget {
+class Thumb extends StatefulWidget {
   final AssetEntity asset;
   const Thumb(this.asset, {super.key});
-  @override Widget build(BuildContext context) => FutureBuilder<Uint8List?>(
-    future: asset.thumbnailDataWithSize(const ThumbnailSize(500, 500)),
-    builder: (_, s) => s.hasData
-      ? Image.memory(s.data!, fit: BoxFit.cover)
-      : Container(color: Theme.of(context).colorScheme.surfaceContainerHighest, child: const Center(child: CircularProgressIndicator(strokeWidth: 2))),
+  @override State<Thumb> createState() => _ThumbState();
+}
+
+class _ThumbState extends State<Thumb> {
+  Future<Uint8List?>? _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant Thumb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.asset.id != widget.asset.id) _load();
+  }
+
+  void _load() {
+    _future = widget.asset.thumbnailDataWithSize(const ThumbnailSize(800, 800));
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Uint8List?>(
+    future: _future,
+    builder: (_, s) {
+      if (s.connectionState == ConnectionState.waiting) {
+        return Container(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        );
+      }
+      if (s.hasError || s.data == null) {
+        return Container(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: const Center(child: Icon(Icons.broken_image_outlined)),
+        );
+      }
+      return Image.memory(
+        s.data!,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => Container(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: const Center(child: Icon(Icons.broken_image_outlined)),
+        ),
+      );
+    },
   );
 }
 
