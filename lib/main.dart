@@ -374,6 +374,7 @@ class _HomeState extends State<Home> {
   }
 
   Future<void> _recordBackup() async {
+    if (!mounted) return;
     final stamp = DateTime.now().toIso8601String();
     setState(() {
       backupHistory.insert(0, stamp);
