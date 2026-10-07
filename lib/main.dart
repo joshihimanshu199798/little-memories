@@ -190,6 +190,7 @@ class _HomeState extends State<Home> {
   List<Timeline> timelines = [];
   Set<String> favorites = {};
   Map<String, String> names = {}, captions = {};
+  List<String> backupHistory = [];
   String childName = 'My Little Star', childBirthday = '';
   String searchQuery = '';
   final TextEditingController searchController = TextEditingController();
@@ -209,6 +210,7 @@ class _HomeState extends State<Home> {
     favorites = (p.getStringList('favorites') ?? const []).toSet();
     final n = p.getString('names'); if (n != null) names = Map<String, String>.from(jsonDecode(n));
     final c = p.getString('captions'); if (c != null) captions = Map<String, String>.from(jsonDecode(c));
+    backupHistory = p.getStringList('backupHistory') ?? [];
     grid = p.getInt('grid') ?? 3;
     childName = p.getString('childName') ?? 'My Little Star';
     childBirthday = p.getString('childBirthday') ?? '';
@@ -251,6 +253,7 @@ class _HomeState extends State<Home> {
     await p.setStringList('favorites', favorites.toList());
     await p.setString('names', jsonEncode(names));
     await p.setString('captions', jsonEncode(captions));
+    await p.setStringList('backupHistory', backupHistory);
     await p.setInt('grid', grid);
     await p.setString('childName', childName);
     await p.setString('childBirthday', childBirthday);
@@ -259,6 +262,15 @@ class _HomeState extends State<Home> {
   AssetEntity? _find(String id) {
     for (final a in photos) { if (a.id == id) return a; }
     return null;
+  }
+
+  Future<void> _recordBackup() async {
+    final stamp = DateTime.now().toIso8601String();
+    setState(() {
+      backupHistory.insert(0, stamp);
+      if (backupHistory.length > 20) backupHistory = backupHistory.take(20).toList();
+    });
+    await _save();
   }
 
   Future<void> _editMemory(AssetEntity a) async {
@@ -520,7 +532,9 @@ class _HomeState extends State<Home> {
       childName: childName,
       childBirthday: childBirthday,
       onChildEdit: _editChildProfile,
-      onPcConnect: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PcConnectPage(photos: photos, timelines: timelines, names: names, captions: captions))),
+      onPcConnect: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PcConnectPage(photos: photos, timelines: timelines, names: names, captions: captions, onBackupStarted: _recordBackup))),
+      backupHistory: backupHistory,
+      onBackup: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PcConnectPage(photos: photos, timelines: timelines, names: names, captions: captions, onBackupStarted: _recordBackup, startBackupMode: true))),
     );
     return Scaffold(
       appBar: AppBar(
@@ -548,7 +562,9 @@ class PcConnectPage extends StatefulWidget {
   final List<Timeline> timelines;
   final Map<String, String> names;
   final Map<String, String> captions;
-  const PcConnectPage({super.key, required this.photos, required this.timelines, required this.names, required this.captions});
+  final VoidCallback onBackupStarted;
+  final bool startBackupMode;
+  const PcConnectPage({super.key, required this.photos, required this.timelines, required this.names, required this.captions, required this.onBackupStarted, this.startBackupMode = false});
   @override State<PcConnectPage> createState() => _PcConnectPageState();
 }
 
@@ -598,7 +614,14 @@ class _PcConnectPageState extends State<PcConnectPage> {
             SelectableText(url, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700)),
           ]))),
           const SizedBox(height: 12),
-          Card(child: ListTile(leading: const Icon(Icons.photo_library_outlined), title: Text('${widget.photos.length} photos ready'), subtitle: const Text('The PC page lets you preview, select and download photos and complete timelines.'))),
+          Card(child: ListTile(leading: const Icon(Icons.photo_library_outlined), title: Text('${widget.photos.length} photos ready'), subtitle: Text(widget.startBackupMode ? 'Backup mode: download every photo to Windows.' : 'Preview, select and download photos and complete timelines.'))),
+          if (widget.startBackupMode) Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const Text('Full PC backup', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            const SizedBox(height: 6),
+            const Text('Download all memories from this phone to the connected Windows PC.'),
+            const SizedBox(height: 12),
+            FilledButton.icon(onPressed: () { widget.onBackupStarted(); }, icon: const Icon(Icons.backup_outlined), label: const Text('Start full backup on PC')),
+          ]))),
           if (connectedAt != null) Card(child: ListTile(leading: const Icon(Icons.check_circle_outline), title: const Text('PC connected'), subtitle: Text('Last activity: ${connectedAt!.hour.toString().padLeft(2, '0')}:${connectedAt!.minute.toString().padLeft(2, '0')}'))),
           const SizedBox(height: 8),
           OutlinedButton.icon(onPressed: () async { await service?.stop(); if (mounted) setState(() => service = null); }, icon: const Icon(Icons.stop_circle_outlined), label: const Text('Stop PC connection')),
@@ -686,8 +709,8 @@ class _ViewerState extends State<Viewer> {
 }
 
 class SettingsPage extends StatelessWidget {
-  final int grid; final bool dark; final ValueChanged<int> onGrid; final ValueChanged<bool> onDark; final VoidCallback onShare; final String childName; final String childBirthday; final VoidCallback onChildEdit; final VoidCallback onPcConnect;
-  const SettingsPage({super.key, required this.grid, required this.dark, required this.onGrid, required this.onDark, required this.onShare, required this.childName, required this.childBirthday, required this.onChildEdit, required this.onPcConnect});
+  final int grid; final bool dark; final ValueChanged<int> onGrid; final ValueChanged<bool> onDark; final VoidCallback onShare; final String childName; final String childBirthday; final VoidCallback onChildEdit; final VoidCallback onPcConnect; final VoidCallback onBackup; final List<String> backupHistory;
+  const SettingsPage({super.key, required this.grid, required this.dark, required this.onGrid, required this.onDark, required this.onShare, required this.childName, required this.childBirthday, required this.onChildEdit, required this.onPcConnect, required this.onBackup, required this.backupHistory});
   @override Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(16), children: [
     const Text('Professional controls', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800)),
     const SizedBox(height: 14),
@@ -695,6 +718,7 @@ class SettingsPage extends StatelessWidget {
     Card(child: ListTile(title: const Text('Gallery grid size'), subtitle: Slider(value: grid.toDouble(), min: 2, max: 6, divisions: 4, label: grid.toString() + ' columns', onChanged: (v) => onGrid(v.round())), trailing: Text(grid.toString() + '×'))),
     Card(child: ListTile(leading: const Icon(Icons.child_care_outlined), title: Text(childName), subtitle: Text(childBirthday.isEmpty ? 'Add birthday and milestones' : 'Birthday: $childBirthday'), onTap: onChildEdit)),
     Card(child: ListTile(leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Connect to Windows PC'), subtitle: const Text('Pair on the same Wi-Fi and transfer photos from your phone to your PC.'), trailing: const Icon(Icons.qr_code_2), onTap: onPcConnect)),
+    Card(child: ListTile(leading: const Icon(Icons.backup_outlined), title: const Text('Backup Center'), subtitle: Text(backupHistory.isEmpty ? 'No PC backups recorded yet.' : 'Last backup: ${backupHistory.first.substring(0, 16).replaceAll('T', ' ')}'), trailing: const Icon(Icons.chevron_right), onTap: onBackup)),
     Card(child: ListTile(leading: const Icon(Icons.people_outline), title: const Text('Family collaboration'), subtitle: const Text('Private accounts, shared timelines, reactions and comments are planned for the cloud edition.'))),
     Card(child: ListTile(leading: const Icon(Icons.share_outlined), title: const Text('Share gallery'), onTap: onShare)),
     const Card(child: ListTile(leading: Icon(Icons.lock_outline), title: Text('Privacy first'), subtitle: Text('Photos stay in your device library. The app stores timeline metadata locally.'))),
