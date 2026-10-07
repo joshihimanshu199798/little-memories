@@ -1773,13 +1773,320 @@ class _DeviceAlbumPageState extends State<DeviceAlbumPage> {
   }
 }
 
-class VideoAlbumPage extends StatelessWidget{final List<AssetEntity> assets;final int grid;const VideoAlbumPage({super.key,required this.assets,required this.grid});@override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('All Videos'),actions:[Padding(padding:const EdgeInsets.only(right:16),child:Center(child:Text(assets.length.toString())))]),body:assets.isEmpty?const Center(child:Text('No videos found on this phone.')):GridView.builder(padding:const EdgeInsets.all(6),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:grid.clamp(2,8),crossAxisSpacing:5,mainAxisSpacing:5),itemCount:assets.length,itemBuilder:(_,i){final a=assets[i];return GestureDetector(onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>VideoViewer(asset:a))),child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Stack(fit:StackFit.expand,children:[Thumb(a),const Center(child:CircleAvatar(backgroundColor:Colors.black54,child:Icon(Icons.play_arrow_rounded,color:Colors.white,size:28))),Positioned(left:7,bottom:7,child:Container(padding:const EdgeInsets.symmetric(horizontal:7,vertical:4),decoration:BoxDecoration(color:Colors.black54,borderRadius:BorderRadius.circular(8)),child:Text(a.videoDuration.inMinutes.toString().padLeft(2,'0')+':'+(a.videoDuration.inSeconds%60).toString().padLeft(2,'0'),style:const TextStyle(color:Colors.white,fontSize:10,fontWeight:FontWeight.w800))))])));}});
+class VideoAlbumPage extends StatelessWidget {
+  final List<AssetEntity> assets;
+  final int grid;
+  const VideoAlbumPage({super.key, required this.assets, required this.grid});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('All Videos'),
+        actions: [Padding(padding: const EdgeInsets.only(right: 16), child: Center(child: Text(assets.length.toString())))],
+      ),
+      body: assets.isEmpty
+          ? const Center(child: Text('No videos found on this phone.'))
+          : GridView.builder(
+              padding: const EdgeInsets.all(6),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: grid.clamp(2, 8),
+                crossAxisSpacing: 5,
+                mainAxisSpacing: 5,
+              ),
+              itemCount: assets.length,
+              itemBuilder: (_, i) {
+                final a = assets[i];
+                final duration = a.videoDuration.inMinutes.toString().padLeft(2, '0') +
+                    ':' +
+                    (a.videoDuration.inSeconds % 60).toString().padLeft(2, '0');
+                return GestureDetector(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => VideoViewer(asset: a))),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Thumb(a),
+                        const Center(
+                          child: CircleAvatar(
+                            backgroundColor: Colors.black54,
+                            child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28),
+                          ),
+                        ),
+                        Positioned(
+                          left: 7,
+                          bottom: 7,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                            decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
+                            child: Text(duration, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
 }
-class VideoViewer extends StatefulWidget{final AssetEntity asset;const VideoViewer({super.key,required this.asset});@override State<VideoViewer> createState()=>_VideoViewerState();}
-class _VideoViewerState extends State<VideoViewer>{VideoPlayerController? controller;bool loading=true;String? error;@override void initState(){super.initState();_init();}Future<void> _init()async{try{final f=await widget.asset.file;if(f==null){if(mounted)setState((){loading=false;error='Video file is unavailable.';});return;}final c=VideoPlayerController.file(f);await c.initialize();if(mounted)setState((){controller=c;loading=false;});else await c.dispose();}catch(e){if(mounted)setState((){loading=false;error=e.toString();});}}@override void dispose(){controller?.dispose();super.dispose();}@override Widget build(BuildContext context){final c=controller;return Scaffold(backgroundColor:Colors.black,appBar:AppBar(backgroundColor:Colors.black,foregroundColor:Colors.white,title:Text(widget.asset.title??'Video')),body:loading?const Center(child:CircularProgressIndicator()):error!=null?Center(child:Text(error!,style:const TextStyle(color:Colors.white))):Column(mainAxisAlignment:MainAxisAlignment.center,children:[AspectRatio(aspectRatio:c!.value.aspectRatio,child:VideoPlayer(c)),Padding(padding:const EdgeInsets.all(14),child:Row(children:[IconButton(color:Colors.white,icon:Icon(c.value.isPlaying?Icons.pause_circle_filled:Icons.play_circle_filled,size:42),onPressed:(){setState((){c.value.isPlaying?c.pause():c.play();});}),Expanded(child:VideoProgressIndicator(c,allowScrubbing:true,padding:const EdgeInsets.symmetric(horizontal:8))),Text(c.value.position.inMinutes.toString()+':'+(c.value.position.inSeconds%60).toString().padLeft(2,'0'),style:const TextStyle(color:Colors.white,fontSize:11))]))]);}}
-class DocumentFileItem{final String path,name,extension;final int size;final DateTime modified;const DocumentFileItem({required this.path,required this.name,required this.extension,required this.size,required this.modified});}
-class DocumentsPage extends StatefulWidget{const DocumentsPage({super.key});@override State<DocumentsPage> createState()=>_DocumentsPageState();}
-class _DocumentsPageState extends State<DocumentsPage>{final controller=TextEditingController();List<DocumentFileItem> docs=[];bool loading=true;String query='';static const extensions={'pdf','doc','docx','xls','xlsx','ppt','pptx','txt','csv','rtf','odt','ods','odp','md','json','xml','epub'};@override void initState(){super.initState();_scan();}@override void dispose(){controller.dispose();super.dispose();}Future<void> _scan()async{if(!Platform.isAndroid){if(mounted)setState(()=>loading=false);return;}var granted=(await Permission.manageExternalStorage.status).isGranted;if(!granted){await Permission.manageExternalStorage.request();granted=(await Permission.manageExternalStorage.status).isGranted;}if(!granted){if(mounted)setState(()=>loading=false);return;}final found=<DocumentFileItem>[];final queue=<Directory>[Directory('/storage/emulated/0')];final seen=<String>{};while(queue.isNotEmpty&&found.length<10000){final d=queue.removeLast();try{if(!seen.add(d.path))continue;await for(final e in d.list(followLinks:false)){final name=e.path.split('/').last;if(e is Directory){if(name=='Android'||name.startsWith('.'))continue;queue.add(e);}else if(e is File){final dot=name.lastIndexOf('.');if(dot<=0)continue;final ext=name.substring(dot+1).toLowerCase();if(!extensions.contains(ext))continue;try{final st=await e.stat();found.add(DocumentFileItem(path:e.path,name:name,extension:ext,size:st.size,modified:st.modified));}catch(_){}}}}catch(_){}}found.sort((a,b)=>b.modified.compareTo(a.modified));if(mounted)setState((){docs=found;loading=false;});}List<DocumentFileItem> get filtered{final x=query.trim().toLowerCase();if(x.isEmpty)return docs;return docs.where((d)=>d.name.toLowerCase().contains(x)||d.extension.contains(x)||d.path.toLowerCase().contains(x)).toList();}String _size(int n)=>n>=1073741824?(n/1073741824).toStringAsFixed(1)+' GB':n>=1048576?(n/1048576).toStringAsFixed(1)+' MB':n>=1024?(n/1024).toStringAsFixed(0)+' KB':n.toString()+' B';IconData _icon(String e){if(e=='pdf')return Icons.picture_as_pdf_rounded;if({'doc','docx','odt'}.contains(e))return Icons.article_rounded;if({'xls','xlsx','ods','csv'}.contains(e))return Icons.table_chart_rounded;if({'ppt','pptx','odp'}.contains(e))return Icons.slideshow_rounded;return Icons.description_rounded;}@override Widget build(BuildContext context){final list=filtered;return Scaffold(appBar:AppBar(title:const Text('Documents'),actions:[IconButton(onPressed:_scan,tooltip:'Rescan',icon:const Icon(Icons.refresh_rounded)),Padding(padding:const EdgeInsets.only(right:16),child:Center(child:Text(list.length.toString())))]),body:loading?const Center(child:CircularProgressIndicator()):Column(children:[Padding(padding:const EdgeInsets.all(14),child:TextField(controller:controller,onChanged:(v)=>setState(()=>query=v),decoration:InputDecoration(hintText:'Search documents, folders or type…',prefixIcon:const Icon(Icons.search_rounded),filled:true,border:OutlineInputBorder(borderRadius:BorderRadius.circular(18),borderSide:BorderSide.none)))),Padding(padding:const EdgeInsets.fromLTRB(14,0,14,8),child:Align(alignment:Alignment.centerLeft,child:Text(list.length.toString()+' documents • '+docs.length.toString()+' indexed',style:TextStyle(fontWeight:FontWeight.w700,color:Theme.of(context).colorScheme.onSurfaceVariant)))),Expanded(child:list.isEmpty?const Center(child:Padding(padding:EdgeInsets.all(28),child:Text('No accessible documents. Enable “Allow access to manage all files” in Android settings so Little Memories can scan shared storage.',textAlign:TextAlign.center))):ListView.separated(padding:const EdgeInsets.fromLTRB(10,0,10,30),itemCount:list.length,separatorBuilder:(_,__)=>const SizedBox(height:6),itemBuilder:(_,i){final d=list[i];return Card(child:ListTile(onTap:()=>OpenFile.open(d.path),leading:CircleAvatar(child:Icon(_icon(d.extension))),title:Text(d.name,maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text(d.extension.toUpperCase()+' • '+_size(d.size)+' • '+d.path.replaceFirst('/storage/emulated/0/','')),trailing:const Icon(Icons.open_in_new_rounded)));}))])});}}
+
+class VideoViewer extends StatefulWidget {
+  final AssetEntity asset;
+  const VideoViewer({super.key, required this.asset});
+  @override State<VideoViewer> createState() => _VideoViewerState();
+}
+
+class _VideoViewerState extends State<VideoViewer> {
+  VideoPlayerController? controller;
+  bool loading = true;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      final file = await widget.asset.file;
+      if (file == null) {
+        if (mounted) setState(() { loading = false; error = 'Video file is unavailable.'; });
+        return;
+      }
+      final player = VideoPlayerController.file(file);
+      await player.initialize();
+      if (mounted) {
+        setState(() { controller = player; loading = false; });
+      } else {
+        await player.dispose();
+      }
+    } catch (e) {
+      if (mounted) setState(() { loading = false; error = e.toString(); });
+    }
+  }
+
+  @override
+  void dispose() {
+    controller?.dispose();
+    super.dispose();
+  }
+
+  String _time(Duration d) {
+    return d.inMinutes.toString() + ':' + (d.inSeconds % 60).toString().padLeft(2, '0');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final player = controller;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(widget.asset.title ?? 'Video'),
+      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : error != null
+              ? Center(child: Text(error!, style: const TextStyle(color: Colors.white)))
+              : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AspectRatio(aspectRatio: player!.value.aspectRatio, child: VideoPlayer(player)),
+                    Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            color: Colors.white,
+                            icon: Icon(player.value.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, size: 42),
+                            onPressed: () {
+                              setState(() {
+                                if (player.value.isPlaying) {
+                                  player.pause();
+                                } else {
+                                  player.play();
+                                }
+                              });
+                            },
+                          ),
+                          Expanded(child: VideoProgressIndicator(player, allowScrubbing: true, padding: const EdgeInsets.symmetric(horizontal: 8))),
+                          Text(_time(player.value.position), style: const TextStyle(color: Colors.white, fontSize: 11)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+    );
+  }
+}
+
+class DocumentFileItem {
+  final String path;
+  final String name;
+  final String extension;
+  final int size;
+  final DateTime modified;
+  const DocumentFileItem({required this.path, required this.name, required this.extension, required this.size, required this.modified});
+}
+
+class DocumentsPage extends StatefulWidget {
+  const DocumentsPage({super.key});
+  @override State<DocumentsPage> createState() => _DocumentsPageState();
+}
+
+class _DocumentsPageState extends State<DocumentsPage> {
+  final controller = TextEditingController();
+  List<DocumentFileItem> docs = [];
+  bool loading = true;
+  String query = '';
+  static const extensions = {'pdf','doc','docx','xls','xlsx','ppt','pptx','txt','csv','rtf','odt','ods','odp','md','json','xml','epub'};
+
+  @override
+  void initState() {
+    super.initState();
+    _scan();
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _scan() async {
+    if (!Platform.isAndroid) {
+      if (mounted) setState(() => loading = false);
+      return;
+    }
+    var granted = (await Permission.manageExternalStorage.status).isGranted;
+    if (!granted) {
+      await Permission.manageExternalStorage.request();
+      granted = (await Permission.manageExternalStorage.status).isGranted;
+    }
+    if (!granted) {
+      if (mounted) setState(() => loading = false);
+      return;
+    }
+
+    final found = <DocumentFileItem>[];
+    final queue = <Directory>[Directory('/storage/emulated/0')];
+    final seen = <String>{};
+
+    while (queue.isNotEmpty && found.length < 10000) {
+      final dir = queue.removeLast();
+      try {
+        if (!seen.add(dir.path)) continue;
+        await for (final entity in dir.list(followLinks: false)) {
+          final name = entity.path.split('/').last;
+          if (entity is Directory) {
+            if (name == 'Android' || name.startsWith('.')) continue;
+            queue.add(entity);
+          } else if (entity is File) {
+            final dot = name.lastIndexOf('.');
+            if (dot <= 0) continue;
+            final ext = name.substring(dot + 1).toLowerCase();
+            if (!extensions.contains(ext)) continue;
+            try {
+              final stat = await entity.stat();
+              found.add(DocumentFileItem(path: entity.path, name: name, extension: ext, size: stat.size, modified: stat.modified));
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+    }
+
+    found.sort((a, b) => b.modified.compareTo(a.modified));
+    if (mounted) setState(() { docs = found; loading = false; });
+  }
+
+  List<DocumentFileItem> get filtered {
+    final x = query.trim().toLowerCase();
+    if (x.isEmpty) return docs;
+    return docs.where((d) => d.name.toLowerCase().contains(x) || d.extension.contains(x) || d.path.toLowerCase().contains(x)).toList();
+  }
+
+  String _size(int n) {
+    if (n >= 1073741824) return (n / 1073741824).toStringAsFixed(1) + ' GB';
+    if (n >= 1048576) return (n / 1048576).toStringAsFixed(1) + ' MB';
+    if (n >= 1024) return (n / 1024).toStringAsFixed(0) + ' KB';
+    return n.toString() + ' B';
+  }
+
+  IconData _icon(String e) {
+    if (e == 'pdf') return Icons.picture_as_pdf_rounded;
+    if ({'doc','docx','odt'}.contains(e)) return Icons.article_rounded;
+    if ({'xls','xlsx','ods','csv'}.contains(e)) return Icons.table_chart_rounded;
+    if ({'ppt','pptx','odp'}.contains(e)) return Icons.slideshow_rounded;
+    return Icons.description_rounded;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final list = filtered;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Documents'),
+        actions: [
+          IconButton(onPressed: _scan, tooltip: 'Rescan', icon: const Icon(Icons.refresh_rounded)),
+          Padding(padding: const EdgeInsets.only(right: 16), child: Center(child: Text(list.length.toString()))),
+        ],
+      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: TextField(
+                    controller: controller,
+                    onChanged: (v) => setState(() => query = v),
+                    decoration: InputDecoration(
+                      hintText: 'Search documents, folders or type…',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      filled: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(list.length.toString() + ' documents • ' + docs.length.toString() + ' indexed', style: TextStyle(fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  ),
+                ),
+                Expanded(
+                  child: list.isEmpty
+                      ? const Center(child: Padding(padding: EdgeInsets.all(28), child: Text('No accessible documents. Enable “Allow access to manage all files” in Android settings so Little Memories can scan shared storage.', textAlign: TextAlign.center)))
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(10, 0, 10, 30),
+                          itemCount: list.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 6),
+                          itemBuilder: (_, i) {
+                            final d = list[i];
+                            return Card(
+                              child: ListTile(
+                                onTap: () => OpenFile.open(d.path),
+                                leading: CircleAvatar(child: Icon(_icon(d.extension))),
+                                title: Text(d.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
+                                subtitle: Text(d.extension.toUpperCase() + ' • ' + _size(d.size) + ' • ' + d.path.replaceFirst('/storage/emulated/0/', '')),
+                                trailing: const Icon(Icons.open_in_new_rounded),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
 class PcConnectPage extends StatefulWidget {
   final List<AssetEntity> photos;
   final List<Timeline> timelines;
