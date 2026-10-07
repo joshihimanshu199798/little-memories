@@ -1,48 +1,13 @@
-name: Build Little Memories APK
+name: Legacy APK Build (disabled)
 
+# The repository now publishes a single APK through build-apk-v2.yml.
+# Kept as a manual-only legacy workflow so old history remains intact.
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
 
 jobs:
-  build:
+  disabled:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.41.2'
-          channel: stable
-          cache: true
-
-      # The repository contains the Dart app files but not the generated
-      # Android host project. Flutter can generate that host project in CI.
-      - name: Generate Android project
-        run: flutter create --platforms=android --project-name=little_memories .
-
-      - name: Configure Android photo permissions
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("android/app/src/main/AndroidManifest.xml")
-          s = p.read_text()
-          perms = """    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>"""
-          s = s.replace('<application', perms + '\\n    <application', 1)
-          p.write_text(s)
-          PY
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Build APK
-        run: flutter build apk --release
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: little-memories-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+      - name: Legacy workflow disabled
+        run: echo "Disabled - use Build Little Memories APK v2"
