@@ -284,6 +284,8 @@ class _HomeState extends State<Home> {
   bool galleryShowNames = false;
   bool loading = true, permissionDenied = false;
   List<AssetEntity> photos = [];
+  List<AssetPathEntity> deviceAlbums = [];
+  List<AssetPathEntity> deviceDeletedAlbums = [];
   List<Timeline> timelines = [];
   Set<String> favorites = {};
   Map<String, String> names = {}, captions = {};
@@ -324,19 +326,46 @@ class _HomeState extends State<Home> {
   }
 
   Future<void> _refreshPhotos() async {
-    final paths = await PhotoManager.getAssetPathList(type: RequestType.image, onlyAll: true);
-    if (paths.isNotEmpty) {
+    final allPaths = await PhotoManager.getAssetPathList(type: RequestType.image, onlyAll: false, hasAll: true);
+    final usable = <AssetPathEntity>[];
+    final deleted = <AssetPathEntity>[];
+    for (final p in allPaths) {
+      final n = p.name.toLowerCase();
+      if (n.contains('recently deleted') || n.contains('trash') || n.contains('recycle bin') || n == 'bin' || n.contains('recently removed')) {
+        deleted.add(p);
+      } else if (p.assetCount > 0 || p.isAll) {
+        usable.add(p);
+      }
+    }
+    deviceAlbums = usable;
+    deviceDeletedAlbums = deleted;
+    final allAlbum = usable.where((p) => p.isAll).toList();
+    if (allAlbum.isNotEmpty) {
       final all = <AssetEntity>[];
       var page = 0;
       const pageSize = 200;
       while (true) {
-        final batch = await paths.first.getAssetListPaged(page: page, size: pageSize);
+        final batch = await allAlbum.first.getAssetListPaged(page: page, size: pageSize);
         if (batch.isEmpty) break;
         all.addAll(batch);
         if (batch.length < pageSize) break;
         page++;
       }
       photos = all;
+    } else if (usable.isNotEmpty) {
+      final all = <AssetEntity>[];
+      for (final p in usable) {
+        var page = 0;
+        while (true) {
+          final batch = await p.getAssetListPaged(page: page, size: 200);
+          if (batch.isEmpty) break;
+          all.addAll(batch);
+          if (batch.length < 200) break;
+          page++;
+        }
+      }
+      final seen = <String>{};
+      photos = all.where((a) => seen.add(a.id)).toList();
     }
     if (mounted) setState(() {});
   }
