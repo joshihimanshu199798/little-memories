@@ -1058,12 +1058,23 @@ class _HomeState extends State<Home> {
               filled: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
             ),
           )),
-          Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 6), child: Row(children: [
+          Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 4), child: Row(children: [
             Expanded(child: Text(photos.length.toString() + ' memories', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600))),
             IconButton(tooltip: galleryNewestFirst ? 'Showing newest first' : 'Showing oldest first', onPressed: () => setState(() => galleryNewestFirst = !galleryNewestFirst), icon: Icon(galleryNewestFirst ? Icons.south_rounded : Icons.north_rounded)),
             IconButton(tooltip: galleryShowNames ? 'Hide names' : 'Show names', onPressed: () => setState(() => galleryShowNames = !galleryShowNames), icon: Icon(galleryShowNames ? Icons.text_fields : Icons.text_fields_outlined)),
             PopupMenuButton<int>(tooltip: 'Grid size', initialValue: grid, onSelected: (v) => setState(() => grid = v), itemBuilder: (_) => [2,3,4,5,6].map((v) => PopupMenuItem(value: v, child: Text('$v columns'))).toList(), child: const Icon(Icons.grid_view_rounded)),
           ])),
+          SizedBox(height: 42, child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 12), scrollDirection: Axis.horizontal,
+            children: [
+              for (final f in const [0, 1, 2, 3, 4])
+                Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(
+                  label: Text(['All', 'Favorites', 'Named', 'Captions', 'In stories'][f]),
+                  selected: galleryFilter == f,
+                  onSelected: (_) async { setState(() => galleryFilter = f); await _save(); },
+                )),
+            ],
+          )),
           Expanded(child: _gallery()),
         ])
       : _dashboard();
@@ -1090,10 +1101,12 @@ class _HomeState extends State<Home> {
                 PopupMenuButton<String>(
                   onSelected: (v) {
                     if (v == 'timeline') _bulkAddToTimeline();
+                    if (v == 'hide') _hideSelected();
                     if (v == 'all') setState(() => selectedIds = photos.map((a) => a.id).toSet());
                   },
                   itemBuilder: (_) => const [
                     PopupMenuItem(value: 'timeline', child: Text('Add to timeline')),
+                    PopupMenuItem(value: 'hide', child: Text('Move to Private / Hidden')),
                     PopupMenuItem(value: 'all', child: Text('Select all memories')),
                   ],
                 ),
@@ -1101,6 +1114,21 @@ class _HomeState extends State<Home> {
             : [IconButton(onPressed: _refreshPhotos, icon: const Icon(Icons.refresh))],
       ),
       body: body,
+      floatingActionButton: tab == 0 && !selectionMode ? FloatingActionButton.extended(
+        onPressed: () => showModalBottomSheet(
+          context: context,
+          builder: (_) => SafeArea(child: Wrap(children: [
+            const ListTile(title: Text('Memory tools', style: TextStyle(fontWeight: FontWeight.w900))),
+            ListTile(leading: const Icon(Icons.insights_rounded), title: const Text('Memory statistics'), onTap: () { Navigator.pop(context); _memoryStatistics(); }),
+            ListTile(leading: const Icon(Icons.content_copy_rounded), title: const Text('Find likely duplicates'), onTap: () { Navigator.pop(context); _smartDuplicateScan(); }),
+            ListTile(leading: const Icon(Icons.lock_outline_rounded), title: const Text('Private / Hidden memories'), onTap: () { Navigator.pop(context); _showHiddenMemories(); }),
+            ListTile(leading: const Icon(Icons.slideshow_rounded), title: const Text('Play memory slideshow'), onTap: () { Navigator.pop(context); _startSlideshow(); }),
+            ListTile(leading: const Icon(Icons.share_rounded), title: const Text('Share memory collection'), onTap: () { Navigator.pop(context); _shareMemoryCollection(); }),
+          ])),
+        ),
+        icon: const Icon(Icons.auto_awesome_rounded),
+        label: const Text('Memory tools'),
+      ) : null,
       bottomNavigationBar: selectionMode
           ? null
           : NavigationBar(
