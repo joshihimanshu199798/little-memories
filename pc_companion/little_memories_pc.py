@@ -6,12 +6,14 @@ import threading
 import urllib.parse
 import urllib.request
 import tkinter as tk
+import winreg
 from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
 
 APP_NAME = "Little Memories PC Companion"
 MANIFEST = ".little_memories_backup.json"
 PAIRING = ".little_memories_pairing.json"
+SETTINGS = ".little_memories_settings.json"
 
 
 class Companion(tk.Tk):
@@ -38,6 +40,9 @@ class Companion(tk.Tk):
         self.discovery_running = False
         self.discovery_watch = tk.BooleanVar(value=False)
         self.auto_backup_on_connect = tk.BooleanVar(value=False)
+        self.start_with_windows = tk.BooleanVar(value=False)
+
+        self.load_settings()
 
         root = ttk.Frame(self, padding=20)
         root.pack(fill="both", expand=True)
@@ -91,15 +96,18 @@ class Companion(tk.Tk):
             command=self.toggle_auto,
         ).pack(side="left")
         ttk.Label(auto_row, text="Every").pack(side="left", padx=(18, 6))
-        ttk.Combobox(
+        interval_box = ttk.Combobox(
             auto_row,
             textvariable=self.interval_minutes,
             values=(5, 15, 30, 60),
             width=6,
             state="readonly",
-        ).pack(side="left")
+        )
+        interval_box.pack(side="left")
+        interval_box.bind("<<ComboboxSelected>>", lambda _e: self.save_settings())
         ttk.Label(auto_row, text="minutes").pack(side="left", padx=(6, 0))
-        ttk.Checkbutton(auto_row, text="Backup immediately when phone is discovered", variable=self.auto_backup_on_connect).pack(side="left", padx=(18, 0))
+        ttk.Checkbutton(auto_row, text="Backup immediately when phone is discovered", variable=self.auto_backup_on_connect, command=self.save_settings).pack(side="left", padx=(18, 0))
+        ttk.Checkbutton(auto_row, text="Start with Windows", variable=self.start_with_windows, command=self.toggle_startup).pack(side="left", padx=(18, 0))
 
         ttk.Progressbar(root, variable=self.progress, maximum=100).pack(fill="x", pady=8)
         ttk.Label(root, textvariable=self.status, wraplength=760).pack(anchor="w")
@@ -111,10 +119,63 @@ class Companion(tk.Tk):
 
         self.protocol("WM_DELETE_WINDOW", self.close_app)
 
+    def settings_path(self):
+        return os.path.join(self.folder.get(), SETTINGS)
+
+    def load_settings(self):
+        try:
+            with open(self.settings_path(), "r", encoding="utf-8") as f:
+                s = json.load(f)
+            self.folder.set(s.get("folder", self.folder.get()))
+            self.auto_enabled.set(bool(s.get("auto_enabled", False)))
+            self.interval_minutes.set(int(s.get("interval_minutes", 15)))
+            self.discovery_watch.set(bool(s.get("discovery_watch", False)))
+            self.auto_backup_on_connect.set(bool(s.get("auto_backup_on_connect", False)))
+            self.start_with_windows.set(bool(s.get("start_with_windows", False)))
+        except Exception:
+            pass
+
+    def save_settings(self):
+        try:
+            folder = self.folder.get().strip()
+            if not folder:
+                return
+            os.makedirs(folder, exist_ok=True)
+            with open(self.settings_path(), "w", encoding="utf-8") as f:
+                json.dump({
+                    "folder": folder,
+                    "auto_enabled": self.auto_enabled.get(),
+                    "interval_minutes": self.interval_minutes.get(),
+                    "discovery_watch": self.discovery_watch.get(),
+                    "auto_backup_on_connect": self.auto_backup_on_connect.get(),
+                    "start_with_windows": self.start_with_windows.get(),
+                }, f, indent=2)
+        except Exception as e:
+            self.write(f"Could not save settings: {e}")
+
+    def toggle_startup(self):
+        try:
+            key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
+                if self.start_with_windows.get():
+                    winreg.SetValueEx(key, "Little Memories PC Companion", 0, winreg.REG_SZ, f'"{os.path.abspath(__file__)}"')
+                    self.write("Start with Windows enabled.")
+                else:
+                    try:
+                        winreg.DeleteValue(key, "Little Memories PC Companion")
+                    except FileNotFoundError:
+                        pass
+                    self.write("Start with Windows disabled.")
+            self.save_settings()
+        except Exception as e:
+            self.start_with_windows.set(False)
+            self.write(f"Could not change Windows startup setting: {e}")
+
     def choose(self):
         p = filedialog.askdirectory(initialdir=self.folder.get())
         if p:
             self.folder.set(p)
+            self.save_settings()
 
     def pairing_path(self):
         return os.path.join(self.folder.get(), PAIRING)
@@ -155,6 +216,7 @@ class Companion(tk.Tk):
     def toggle_discovery_watch(self):
         if self.discovery_watch.get():
             self.write("Continuous phone discovery enabled — checking every 10 seconds.")
+            self.save_settings()
             self.schedule_discovery()
         else:
             if self.discovery_job:
@@ -164,6 +226,7 @@ class Companion(tk.Tk):
                     pass
                 self.discovery_job = None
             self.write("Continuous phone discovery disabled.")
+            self.save_settings()
 
     def schedule_discovery(self):
         if self.discovery_job:
@@ -552,12 +615,14 @@ class Companion(tk.Tk):
             self.write(
                 f"Automatic backup enabled — checking every {self.interval_minutes.get()} minutes."
             )
+            self.save_settings()
             self.schedule_auto()
         else:
             if self.auto_job:
                 self.after_cancel(self.auto_job)
                 self.auto_job = None
             self.write("Automatic backup disabled.")
+            self.save_settings()
 
     def schedule_auto(self):
         if self.auto_job:
@@ -576,6 +641,7 @@ class Companion(tk.Tk):
             self.backup(automatic=True)
 
     def close_app(self):
+        self.save_settings()
         if self.auto_job:
             try:
                 self.after_cancel(self.auto_job)
