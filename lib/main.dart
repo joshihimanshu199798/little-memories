@@ -1698,7 +1698,7 @@ class _HomeState extends State<Home> {
           Expanded(child: _gallery()),
         ])
       : _dashboard();
-    final body = tab == 0 ? galleryBody : tab == 1 ? _albumsTab() : tab == 2 ? PhotoSearchPage(photos: photos, videos: videos, names: names, captions: captions, tags: photoTags, favorites: favorites, hiddenIds: hiddenIds, grid: exploreGrid, onGrid: (v) async { setState(() => exploreGrid = v); await _save(); }, onOpen: _openPhoto, onEdit: _openPhotoEditor, onShare: (a) => _share([a], 'Shared from Little Memories'), onToggleFavorite: (a) async { setState(() { favorites.contains(a.id) ? favorites.remove(a.id) : favorites.add(a.id); }); await _save(); }, onTags: _showTagEditor) : tab == 3 ? PhotoStatsPage(photos: photos, videos: videos, favorites: favorites, hiddenIds: hiddenIds, tags: photoTags, albums: deviceAlbums, names: names, captions: captions) : SettingsPage(
+    final body = tab == 0 ? galleryBody : tab == 1 ? _albumsTab() : tab == 2 ? PhotoSearchPage(photos: photos, videos: videos, names: names, captions: captions, tags: photoTags, favorites: favorites, hiddenIds: hiddenIds, grid: exploreGrid, onGrid: (v) async { setState(() => exploreGrid = v); await _save(); }, onOpen: (a, list) { if (a.type == AssetType.video) { Navigator.push(context, MaterialPageRoute(builder: (_) => VideoViewer(asset: a))); } else { _openPhoto(a, list); } }, onEdit: _openPhotoEditor, onShare: (a) => _share([a], 'Shared from Little Memories'), onToggleFavorite: (a) async { setState(() { favorites.contains(a.id) ? favorites.remove(a.id) : favorites.add(a.id); }); await _save(); }, onTags: _showTagEditor) : tab == 3 ? PhotoStatsPage(photos: photos, videos: videos, favorites: favorites, hiddenIds: hiddenIds, tags: photoTags, albums: deviceAlbums, names: names, captions: captions) : SettingsPage(
       grid: grid, dark: Theme.of(context).brightness == Brightness.dark, themeIndex: widget.themeIndex,
       onGrid: (v) { setState(() => grid = v); _save(); },
       onDark: widget.onDark, onTheme: widget.onTheme,
@@ -1778,61 +1778,426 @@ class _HomeState extends State<Home> {
 
 
 
-class PhotoSearchPage extends StatefulWidget{
-final List<AssetEntity> photos;final Map<String,String> names,captions;final Map<String,Set<String>> tags;final Set<String> favorites,hiddenIds;final int grid;final Future<void> Function(int) onGrid;final void Function(AssetEntity,List<AssetEntity>) onOpen;final Future<void> Function(AssetEntity) onEdit,onShare,onToggleFavorite,onTags;
-const PhotoSearchPage({super.key,required this.photos,required this.names,required this.captions,required this.tags,required this.favorites,required this.hiddenIds,required this.grid,required this.onGrid,required this.onOpen,required this.onEdit,required this.onShare,required this.onToggleFavorite,required this.onTags});@override State<PhotoSearchPage> createState()=>_PhotoSearchPageState();}
-class _PhotoSearchPageState extends State<PhotoSearchPage>{
-late TextEditingController c;String q='';bool favOnly=false;int filter=0;late int localGrid;
-@override void initState(){super.initState();c=TextEditingController();localGrid=widget.grid;}@override void dispose(){c.dispose();super.dispose();}
-String _month(int m)=>const ['january','february','march','april','may','june','july','august','september','october','november','december'][m-1];
-List<AssetEntity> get results{var l=widget.photos.where((a)=>!widget.hiddenIds.contains(a.id)).toList();final x=q.trim().toLowerCase();final now=DateTime.now();final tokens=x.split(RegExp(r'\s+')).where((e)=>e.isNotEmpty).toList();final fav=favOnly||tokens.any((t)=>t=='favorite'||t=='favorites'||t=='loved');final tag=filter==1||tokens.any((t)=>t=='tagged'||t=='tags');final vid=tokens.any((t)=>t=='video'||t=='videos');final land=filter==3||tokens.contains('landscape');final port=filter==4||tokens.contains('portrait');if(fav)l=l.where((a)=>widget.favorites.contains(a.id)).toList();if(tag)l=l.where((a)=>(widget.tags[a.id]??{}).isNotEmpty).toList();if(filter==2)l=l.where((a)=>a.createDateTime.year==now.year).toList();if(vid)l=l.where((a)=>a.type==AssetType.video).toList();if(land)l=l.where((a)=>a.width>a.height).toList();if(port)l=l.where((a)=>a.height>a.width).toList();if(tokens.contains('today'))l=l.where((a)=>a.createDateTime.year==now.year&&a.createDateTime.month==now.month&&a.createDateTime.day==now.day).toList();if(tokens.contains('thisyear')||tokens.contains('this-year'))l=l.where((a)=>a.createDateTime.year==now.year).toList();if(tokens.contains('lastyear')||tokens.contains('last-year'))l=l.where((a)=>a.createDateTime.year==now.year-1).toList();if(x.isNotEmpty)l=l.where((a){final hay=[widget.names[a.id]??'',widget.captions[a.id]??'',a.title??'',(widget.tags[a.id]??{}).join(' '),a.relativePath??'',a.createDateTime.year.toString(),a.createDateTime.month.toString(),_month(a.createDateTime.month),a.type==AssetType.video?'video':'photo'].join(' ').toLowerCase();return hay.contains(x)||tokens.every(hay.contains);}).toList();int score(AssetEntity a){if(x.isEmpty)return 0;final hay=[widget.names[a.id]??'',widget.captions[a.id]??'',a.title??'',(widget.tags[a.id]??{}).join(' '),a.relativePath??''].join(' ').toLowerCase();var n=hay.contains(x)?10:0;for(final t in tokens){if(hay.contains(t))n+=2;}if(widget.favorites.contains(a.id))n++;if((widget.tags[a.id]??{}).isNotEmpty)n++;return n;}l.sort((a,b){final n=score(b).compareTo(score(a));return n!=0?n:b.createDateTime.compareTo(a.createDateTime);});return l;}
-String _ai(){final x=q.trim().toLowerCase();if(x.isEmpty)return 'Try “favorite birthday videos”, “tagged”, “landscape this year”, a folder, month or year.';final b=<String>[];if(x.contains('favorite')||x.contains('loved'))b.add('favorites');if(x.contains('tag'))b.add('tags');if(x.contains('video'))b.add('videos');if(x.contains('landscape'))b.add('landscape');if(x.contains('portrait'))b.add('portrait');if(x.contains('year'))b.add('date');return b.isEmpty?'Searching names, captions, tags, folders and dates.':'Smart interpretation: '+b.join(' • ')+'.';}
-Future<void> _actions(AssetEntity a,List<AssetEntity> l)=>showModalBottomSheet(context:context,showDragHandle:true,builder:(_)=>SafeArea(child:Wrap(children:[ListTile(leading:const Icon(Icons.open_in_full_rounded),title:const Text('Open memory'),onTap:(){Navigator.pop(context);widget.onOpen(a,l);}),ListTile(leading:Icon(widget.favorites.contains(a.id)?Icons.favorite:Icons.favorite_border),title:Text(widget.favorites.contains(a.id)?'Remove favorite':'Add favorite'),onTap:(){Navigator.pop(context);widget.onToggleFavorite(a);}),ListTile(leading:const Icon(Icons.sell_outlined),title:const Text('Tags'),onTap:(){Navigator.pop(context);widget.onTags(a);}),ListTile(leading:const Icon(Icons.tune_rounded),title:const Text('Edit'),onTap:(){Navigator.pop(context);widget.onEdit(a);}),ListTile(leading:const Icon(Icons.share_rounded),title:const Text('Share'),onTap:(){Navigator.pop(context);widget.onShare(a);})])));
-@override Widget build(BuildContext context){
-final list=results;final cs=Theme.of(context).colorScheme;
-return Column(children:[
-Padding(padding:const EdgeInsets.fromLTRB(14,12,8,5),child:Row(children:[
-const Expanded(child:Text('AI Explore',style:TextStyle(fontSize:28,fontWeight:FontWeight.w900))),
-IconButton(tooltip:'Favorites only',onPressed:()=>setState(()=>favOnly=!favOnly),icon:Icon(favOnly?Icons.favorite_rounded:Icons.favorite_border_rounded)),
-IconButton(tooltip:'Smart filters',onPressed:()=>setState(()=>advanced=!advanced),icon:Icon(advanced?Icons.tune_rounded:Icons.tune_outlined)),
-PopupMenuButton<String>(onSelected:(v){if(v=='best')setState(()=>sortMode=0);if(v=='new')setState(()=>sortMode=1);if(v=='old')setState(()=>sortMode=2);if(v=='large')setState(()=>sortMode=3);if(v.startsWith('g')){final n=int.parse(v.substring(1));setState(()=>localGrid=n);widget.onGrid(n);}},itemBuilder:(_)=>[const PopupMenuItem(value:'best',child:Text('AI relevance')),const PopupMenuItem(value:'new',child:Text('Newest first')),const PopupMenuItem(value:'old',child:Text('Oldest first')),const PopupMenuItem(value:'large',child:Text('Highest resolution')),const PopupMenuDivider(),for(final v in [2,3,4,5,6,7,8])PopupMenuItem(value:'g'+v.toString(),child:Text(v.toString()+' columns'))])
-])),
-Padding(padding:const EdgeInsets.fromLTRB(14,0,14,7),child:TextField(
-controller:c,onChanged:(v)=>setState(()=>q=v),onSubmitted:(v){final x=v.trim();if(x.isNotEmpty&&!history.contains(x))setState((){history.insert(0,x);if(history.length>6)history.removeLast();});},
-decoration:InputDecoration(hintText:'Ask: favorite birthday videos 2025',prefixIcon:const Icon(Icons.auto_awesome_rounded),suffixIcon:q.isEmpty?null:IconButton(onPressed:(){c.clear();setState(()=>q='');},icon:const Icon(Icons.clear_rounded)),filled:true,border:OutlineInputBorder(borderRadius:BorderRadius.circular(18),borderSide:BorderSide.none)))),
-Card(margin:const EdgeInsets.fromLTRB(14,0,14,7),child:ListTile(dense:true,leading:const Icon(Icons.psychology_alt_outlined),title:const Text('AI memory understanding',style:TextStyle(fontWeight:FontWeight.w800)),subtitle:Text(_ai()),trailing:Column(mainAxisAlignment:MainAxisAlignment.center,children:[Text(list.length.toString(),style:const TextStyle(fontWeight:FontWeight.w900,fontSize:17)),const Text('matches',style:TextStyle(fontSize:10))]))),
-if(advanced)Padding(padding:const EdgeInsets.fromLTRB(14,0,14,7),child:Wrap(spacing:6,runSpacing:6,children:[
-FilterChip(label:const Text('All'),selected:mediaFilter==0,onSelected:(_)=>setState(()=>mediaFilter=0)),
-FilterChip(label:const Text('Photos'),selected:mediaFilter==1,onSelected:(_)=>setState(()=>mediaFilter=1)),
-FilterChip(label:const Text('Videos'),selected:mediaFilter==2,onSelected:(_)=>setState(()=>mediaFilter=2)),
-FilterChip(label:const Text('Tagged'),selected:filter==1,onSelected:(_)=>setState(()=>filter=filter==1?0:1)),
-FilterChip(label:const Text('This year'),selected:filter==2,onSelected:(_)=>setState(()=>filter=filter==2?0:2)),
-FilterChip(label:const Text('Landscape'),selected:filter==3,onSelected:(_)=>setState(()=>filter=filter==3?0:3)),
-FilterChip(label:const Text('Portrait'),selected:filter==4,onSelected:(_)=>setState(()=>filter=filter==4?0:4)),
-])),
-Card(margin:const EdgeInsets.fromLTRB(14,0,14,7),child:ListTile(
-dense:true,leading:const Icon(Icons.auto_awesome),title:const Text('Quick AI searches',style:TextStyle(fontWeight:FontWeight.w800)),
-subtitle:Text('Try favorites, videos, tagged, untagged, dates, folders or dimensions'),
-)),
-if(q.isEmpty)SizedBox(height:78,child:ListView(scrollDirection:Axis.horizontal,padding:const EdgeInsets.symmetric(horizontal:14),children:[
-for(final x in const ['Favorite memories','Favorite videos','Videos this year','Tagged memories','Untagged photos','Landscape this year','Portrait photos','Photos today','Photos before 2025','Photos after 2024'])
-Padding(padding:const EdgeInsets.only(right:7),child:ActionChip(avatar:const Icon(Icons.auto_awesome,size:15),label:Text(x),onPressed:(){c.text=x;setState(()=>q=x);}))
-])),
-if(history.isNotEmpty&&q.isEmpty)Padding(padding:const EdgeInsets.fromLTRB(14,0,14,5),child:Wrap(spacing:5,children:history.take(5).map((x)=>InputChip(label:Text(x),onPressed:(){c.text=x;setState(()=>q=x);},onDeleted:()=>setState(()=>history.remove(x))).toList())),
-Padding(padding:const EdgeInsets.fromLTRB(14,0,14,6),child:Row(children:[Text(list.length.toString()+' results',style:TextStyle(fontWeight:FontWeight.w800,color:cs.onSurfaceVariant)),const Spacer(),Text(sortMode==0?'AI ranked':sortMode==1?'Newest':sortMode==2?'Oldest':'Resolution',style:TextStyle(fontSize:11,color:cs.onSurfaceVariant))])),
-Expanded(child:list.isEmpty?Center(child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.search_off_rounded,size:58),const SizedBox(height:10),const Text('No memories matched',style:TextStyle(fontSize:18,fontWeight:FontWeight.w800)),const SizedBox(height:6),const Text('Try a year, folder, tag, favorite, video or date.',textAlign:TextAlign.center)])):GridView.builder(
-padding:const EdgeInsets.fromLTRB(7,2,7,24),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:localGrid.clamp(2,8),crossAxisSpacing:5,mainAxisSpacing:5),itemCount:list.length,itemBuilder:(_,i){
-final a=list[i];final tags=(widget.tags[a.id]??{}).take(2).join(' • ');
-return GestureDetector(onTap:()=>widget.onOpen(a,list),onLongPress:()=>_actions(a,list),child:Stack(fit:StackFit.expand,children:[
-ClipRRect(borderRadius:BorderRadius.circular(8),child:Thumb(a)),
-if(a.type==AssetType.video)const Positioned(left:6,bottom:6,child:CircleAvatar(radius:13,backgroundColor:Colors.black54,child:Icon(Icons.play_arrow_rounded,color:Colors.white))),
-if(widget.favorites.contains(a.id))const Positioned(right:5,top:5,child:Icon(Icons.favorite_rounded,color:Colors.white)),
-if(tags.isNotEmpty)Positioned(left:5,top:5,right:28,child:Container(padding:const EdgeInsets.symmetric(horizontal:5,vertical:3),decoration:BoxDecoration(color:Colors.black54,borderRadius:BorderRadius.circular(7)),child:Text(tags,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(color:Colors.white,fontSize:8,fontWeight:FontWeight.w700)))),
-Positioned(left:5,right:5,bottom:5,child:Container(padding:const EdgeInsets.symmetric(horizontal:5,vertical:3),decoration:BoxDecoration(color:Colors.black54,borderRadius:BorderRadius.circular(7)),child:Text(a.type==AssetType.video?'VIDEO':(a.relativePath??'').split('/').where((x)=>x.isNotEmpty).lastOrNull??'Photo',maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(color:Colors.white,fontSize:8,fontWeight:FontWeight.w700))))
-]));}))
-]);
+class PhotoSearchPage extends StatefulWidget {
+  final List<AssetEntity> photos, videos;
+  final Map<String,String> names, captions;
+  final Map<String,Set<String>> tags;
+  final Set<String> favorites, hiddenIds;
+  final int grid;
+  final Future<void> Function(int) onGrid;
+  final void Function(AssetEntity,List<AssetEntity>) onOpen;
+  final Future<void> Function(AssetEntity) onEdit, onShare, onToggleFavorite, onTags;
+
+  const PhotoSearchPage({
+    super.key, required this.photos, required this.videos, required this.names,
+    required this.captions, required this.tags, required this.favorites,
+    required this.hiddenIds, required this.grid, required this.onGrid,
+    required this.onOpen, required this.onEdit, required this.onShare,
+    required this.onToggleFavorite, required this.onTags,
+  });
+
+  @override State<PhotoSearchPage> createState() => _PhotoSearchPageState();
 }
-}class PhotoStatsPage extends StatefulWidget{final List<AssetEntity> photos,videos;final Set<String> favorites,hiddenIds;final Map<String,Set<String>> tags;final List<AssetPathEntity> albums;final Map<String,String> names,captions;const PhotoStatsPage({super.key,required this.photos,required this.videos,required this.favorites,required this.hiddenIds,required this.tags,required this.albums,required this.names,required this.captions});@override State<PhotoStatsPage> createState()=>_PhotoStatsPageState();}
+
+class _PhotoSearchPageState extends State<PhotoSearchPage> {
+  late TextEditingController c;
+  String q = '';
+  bool favOnly = false;
+  bool advanced = false;
+  int filter = 0;
+  int mediaFilter = 0;
+  int sortMode = 0;
+  late int localGrid;
+  final List<String> history = [];
+
+  @override void initState() {
+    super.initState();
+    c = TextEditingController();
+    localGrid = widget.grid;
+  }
+
+  @override void dispose() {
+    c.dispose();
+    super.dispose();
+  }
+
+  String _month(int m) => const [
+    'january','february','march','april','may','june',
+    'july','august','september','october','november','december'
+  ][m - 1];
+
+  List<AssetEntity> get results {
+    final all = <AssetEntity>[];
+    final seen = <String>{};
+    for (final a in [...widget.photos, ...widget.videos]) {
+      if (seen.add(a.id) && !widget.hiddenIds.contains(a.id)) all.add(a);
+    }
+
+    final now = DateTime.now();
+    final x = q.trim().toLowerCase();
+    final tokens = x.split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+
+    final wantsFavorite = favOnly || tokens.any((t) => t == 'favorite' || t == 'favorites' || t == 'loved');
+    final wantsTagged = filter == 1 || tokens.any((t) => t == 'tagged' || t == 'tags');
+    final wantsVideo = mediaFilter == 2 || tokens.any((t) => t == 'video' || t == 'videos');
+    final wantsPhoto = mediaFilter == 1 || tokens.any((t) => t == 'photo' || t == 'photos');
+    final wantsLandscape = filter == 3 || tokens.contains('landscape');
+    final wantsPortrait = filter == 4 || tokens.contains('portrait');
+
+    if (wantsFavorite) all.removeWhere((a) => !widget.favorites.contains(a.id));
+    if (wantsTagged) all.removeWhere((a) => (widget.tags[a.id] ?? {}).isEmpty);
+    if (filter == 2 || tokens.contains('thisyear') || tokens.contains('this-year')) {
+      all.removeWhere((a) => a.createDateTime.year != now.year);
+    }
+    if (tokens.contains('lastyear') || tokens.contains('last-year')) {
+      all.removeWhere((a) => a.createDateTime.year != now.year - 1);
+    }
+    if (tokens.contains('today')) {
+      all.removeWhere((a) => a.createDateTime.year != now.year ||
+          a.createDateTime.month != now.month || a.createDateTime.day != now.day);
+    }
+    if (wantsVideo) all.removeWhere((a) => a.type != AssetType.video);
+    if (wantsPhoto) all.removeWhere((a) => a.type == AssetType.video);
+    if (wantsLandscape) all.removeWhere((a) => a.width <= a.height);
+    if (wantsPortrait) all.removeWhere((a) => a.height <= a.width);
+    if (tokens.contains('square')) all.removeWhere((a) => a.width != a.height);
+    if (tokens.contains('high resolution') || tokens.contains('high-resolution') || tokens.contains('highres')) {
+      all.removeWhere((a) => a.width * a.height < 12000000);
+    }
+
+    if (x.isNotEmpty) {
+      all.removeWhere((a) {
+        final hay = [
+          widget.names[a.id] ?? '',
+          widget.captions[a.id] ?? '',
+          a.title ?? '',
+          (widget.tags[a.id] ?? {}).join(' '),
+          a.relativePath ?? '',
+          a.createDateTime.year.toString(),
+          a.createDateTime.month.toString(),
+          _month(a.createDateTime.month),
+          a.type == AssetType.video ? 'video' : 'photo',
+        ].join(' ').toLowerCase();
+        return !(hay.contains(x) || tokens.every(hay.contains));
+      });
+    }
+
+    int score(AssetEntity a) {
+      if (x.isEmpty) return 0;
+      final hay = [
+        widget.names[a.id] ?? '',
+        widget.captions[a.id] ?? '',
+        a.title ?? '',
+        (widget.tags[a.id] ?? {}).join(' '),
+        a.relativePath ?? '',
+      ].join(' ').toLowerCase();
+      var score = hay.contains(x) ? 20 : 0;
+      for (final t in tokens) {
+        if (hay.contains(t)) score += 3;
+      }
+      if (widget.favorites.contains(a.id)) score++;
+      if ((widget.tags[a.id] ?? {}).isNotEmpty) score++;
+      if (widget.names[a.id]?.trim().isNotEmpty == true) score++;
+      return score;
+    }
+
+    all.sort((a, b) {
+      if (sortMode == 1) return b.createDateTime.compareTo(a.createDateTime);
+      if (sortMode == 2) return a.createDateTime.compareTo(b.createDateTime);
+      if (sortMode == 3) {
+        final ap = a.width * a.height;
+        final bp = b.width * b.height;
+        return bp.compareTo(ap);
+      }
+      final s = score(b).compareTo(score(a));
+      return s != 0 ? s : b.createDateTime.compareTo(a.createDateTime);
+    });
+    return all;
+  }
+
+  String _ai() {
+    final x = q.trim().toLowerCase();
+    if (x.isEmpty) {
+      return 'Ask for favorites, videos, tags, people names, folders, dates, years, landscape, portrait or high-resolution memories.';
+    }
+    final understood = <String>[];
+    if (x.contains('favorite') || x.contains('loved')) understood.add('favorites');
+    if (x.contains('video')) understood.add('videos');
+    if (x.contains('tag')) understood.add('tags');
+    if (x.contains('landscape')) understood.add('landscape');
+    if (x.contains('portrait')) understood.add('portrait');
+    if (x.contains('today') || x.contains('year') || RegExp(r'\b20\d{2}\b').hasMatch(x)) understood.add('dates');
+    if (x.contains('high') || x.contains('resolution')) understood.add('quality');
+    return understood.isEmpty
+        ? 'Searching names, captions, tags, folders and dates.'
+        : 'Smart interpretation: ' + understood.join(' • ');
+  }
+
+  void _runQuick(String value) {
+    c.text = value;
+    setState(() => q = value);
+  }
+
+  Future<void> _actions(AssetEntity a, List<AssetEntity> list) {
+    return showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => SafeArea(
+        child: Wrap(children: [
+          ListTile(
+            leading: const Icon(Icons.open_in_full_rounded),
+            title: const Text('Open memory'),
+            onTap: () { Navigator.pop(context); widget.onOpen(a, list); },
+          ),
+          ListTile(
+            leading: Icon(widget.favorites.contains(a.id) ? Icons.favorite : Icons.favorite_border),
+            title: Text(widget.favorites.contains(a.id) ? 'Remove favorite' : 'Add favorite'),
+            onTap: () { Navigator.pop(context); widget.onToggleFavorite(a); },
+          ),
+          ListTile(
+            leading: const Icon(Icons.sell_outlined),
+            title: const Text('Tags'),
+            onTap: () { Navigator.pop(context); widget.onTags(a); },
+          ),
+          ListTile(
+            leading: const Icon(Icons.tune_rounded),
+            title: const Text('Edit'),
+            onTap: () { Navigator.pop(context); widget.onEdit(a); },
+          ),
+          ListTile(
+            leading: const Icon(Icons.share_rounded),
+            title: const Text('Share'),
+            onTap: () { Navigator.pop(context); widget.onShare(a); },
+          ),
+        ]),
+      ),
+    );
+  }
+
+  @override Widget build(BuildContext context) {
+    final list = results;
+    final cs = Theme.of(context).colorScheme;
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 8, 5),
+        child: Row(children: [
+          const Expanded(child: Text('AI Explore', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900))),
+          IconButton(
+            tooltip: 'Favorites only',
+            onPressed: () => setState(() => favOnly = !favOnly),
+            icon: Icon(favOnly ? Icons.favorite_rounded : Icons.favorite_border_rounded),
+          ),
+          IconButton(
+            tooltip: 'Smart filters',
+            onPressed: () => setState(() => advanced = !advanced),
+            icon: Icon(advanced ? Icons.tune_rounded : Icons.tune_outlined),
+          ),
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'best') setState(() => sortMode = 0);
+              if (v == 'new') setState(() => sortMode = 1);
+              if (v == 'old') setState(() => sortMode = 2);
+              if (v == 'large') setState(() => sortMode = 3);
+              if (v.startsWith('g')) {
+                final n = int.parse(v.substring(1));
+                setState(() => localGrid = n);
+                widget.onGrid(n);
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'best', child: Text('AI relevance')),
+              const PopupMenuItem(value: 'new', child: Text('Newest first')),
+              const PopupMenuItem(value: 'old', child: Text('Oldest first')),
+              const PopupMenuItem(value: 'large', child: Text('Highest resolution')),
+              const PopupMenuDivider(),
+              for (final v in [2,3,4,5,6,7,8])
+                PopupMenuItem(value: 'g' + v.toString(), child: Text(v.toString() + ' columns')),
+            ],
+          ),
+        ]),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 7),
+        child: TextField(
+          controller: c,
+          onChanged: (v) => setState(() => q = v),
+          onSubmitted: (v) {
+            final x = v.trim();
+            if (x.isNotEmpty && !history.contains(x)) {
+              setState(() {
+                history.insert(0, x);
+                if (history.length > 6) history.removeLast();
+              });
+            }
+          },
+          decoration: InputDecoration(
+            hintText: 'Ask: favorite birthday videos 2025',
+            prefixIcon: const Icon(Icons.auto_awesome_rounded),
+            suffixIcon: q.isEmpty ? null : IconButton(
+              onPressed: () { c.clear(); setState(() => q = ''); },
+              icon: const Icon(Icons.clear_rounded),
+            ),
+            filled: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
+          ),
+        ),
+      ),
+      Card(
+        margin: const EdgeInsets.fromLTRB(14, 0, 14, 7),
+        child: ListTile(
+          dense: true,
+          leading: const Icon(Icons.psychology_alt_outlined),
+          title: const Text('AI memory understanding', style: TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: Text(_ai()),
+          trailing: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(list.length.toString(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+              const Text('matches', style: TextStyle(fontSize: 10)),
+            ],
+          ),
+        ),
+      ),
+      if (advanced)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 7),
+          child: Wrap(spacing: 6, runSpacing: 6, children: [
+            FilterChip(label: const Text('All'), selected: mediaFilter == 0, onSelected: (_) => setState(() => mediaFilter = 0)),
+            FilterChip(label: const Text('Photos'), selected: mediaFilter == 1, onSelected: (_) => setState(() => mediaFilter = 1)),
+            FilterChip(label: const Text('Videos'), selected: mediaFilter == 2, onSelected: (_) => setState(() => mediaFilter = 2)),
+            FilterChip(label: const Text('Tagged'), selected: filter == 1, onSelected: (_) => setState(() => filter = filter == 1 ? 0 : 1)),
+            FilterChip(label: const Text('This year'), selected: filter == 2, onSelected: (_) => setState(() => filter = filter == 2 ? 0 : 2)),
+            FilterChip(label: const Text('Landscape'), selected: filter == 3, onSelected: (_) => setState(() => filter = filter == 3 ? 0 : 3)),
+            FilterChip(label: const Text('Portrait'), selected: filter == 4, onSelected: (_) => setState(() => filter = filter == 4 ? 0 : 4)),
+          ]),
+        ),
+      Card(
+        margin: const EdgeInsets.fromLTRB(14, 0, 14, 7),
+        child: ListTile(
+          dense: true,
+          leading: const Icon(Icons.auto_awesome),
+          title: const Text('Quick AI searches', style: TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: const Text('Favorites • videos • tagged • dates • folders • dimensions'),
+        ),
+      ),
+      if (q.isEmpty)
+        SizedBox(
+          height: 72,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            children: [
+              for (final x in const [
+                'Favorite memories','Favorite videos','Videos this year','Tagged memories',
+                'Untagged photos','Landscape this year','Portrait photos','Photos today',
+                'Photos before 2025','Photos after 2024'
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(right: 7),
+                  child: ActionChip(
+                    avatar: const Icon(Icons.auto_awesome, size: 15),
+                    label: Text(x),
+                    onPressed: () => _runQuick(x),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      if (history.isNotEmpty && q.isEmpty)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 5),
+          child: Wrap(
+            spacing: 5,
+            children: history.take(5).map((x) => InputChip(
+              label: Text(x),
+              onPressed: () => _runQuick(x),
+              onDeleted: () => setState(() => history.remove(x)),
+            )).toList(),
+          ),
+        ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+        child: Row(children: [
+          Text(list.length.toString() + ' results', style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurfaceVariant)),
+          const Spacer(),
+          Text(
+            sortMode == 0 ? 'AI ranked' : sortMode == 1 ? 'Newest' : sortMode == 2 ? 'Oldest' : 'Resolution',
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
+        ]),
+      ),
+      Expanded(
+        child: list.isEmpty
+            ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.search_off_rounded, size: 58),
+                const SizedBox(height: 10),
+                const Text('No memories matched', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                const Text('Try a year, folder, tag, favorite, video or date', textAlign: TextAlign.center),
+              ]))
+            : GridView.builder(
+                padding: const EdgeInsets.fromLTRB(7, 2, 7, 24),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: localGrid.clamp(2, 8),
+                  crossAxisSpacing: 5,
+                  mainAxisSpacing: 5,
+                ),
+                itemCount: list.length,
+                itemBuilder: (_, i) {
+                  final a = list[i];
+                  final tags = (widget.tags[a.id] ?? {}).take(2).join(' • ');
+                  return GestureDetector(
+                    onTap: () => widget.onOpen(a, list),
+                    onLongPress: () => _actions(a, list),
+                    child: Stack(fit: StackFit.expand, children: [
+                      ClipRRect(borderRadius: BorderRadius.circular(8), child: Thumb(a)),
+                      if (a.type == AssetType.video)
+                        const Positioned(
+                          left: 6, bottom: 6,
+                          child: CircleAvatar(
+                            radius: 13,
+                            backgroundColor: Colors.black54,
+                            child: Icon(Icons.play_arrow_rounded, color: Colors.white),
+                          ),
+                        ),
+                      if (widget.favorites.contains(a.id))
+                        const Positioned(right: 5, top: 5, child: Icon(Icons.favorite_rounded, color: Colors.white)),
+                      if (tags.isNotEmpty)
+                        Positioned(
+                          left: 5, top: 5, right: 28,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                            decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(7)),
+                            child: Text(tags, maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700)),
+                          ),
+                        ),
+                      Positioned(
+                        left: 5, right: 5, bottom: 5,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                          decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(7)),
+                          child: Text(
+                            a.type == AssetType.video
+                                ? 'VIDEO'
+                                : ((a.relativePath ?? '').split('/').where((x) => x.isNotEmpty).isEmpty
+                                    ? 'Photo'
+                                    : (a.relativePath ?? '').split('/').where((x) => x.isNotEmpty).last),
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                    ]),
+                  );
+                },
+              ),
+      ),
+    ]);
+  }
+}
+
+class PhotoStatsPage extends StatefulWidget{final List<AssetEntity> photos,videos;final Set<String> favorites,hiddenIds;final Map<String,Set<String>> tags;final List<AssetPathEntity> albums;final Map<String,String> names,captions;const PhotoStatsPage({super.key,required this.photos,required this.videos,required this.favorites,required this.hiddenIds,required this.tags,required this.albums,required this.names,required this.captions});@override State<PhotoStatsPage> createState()=>_PhotoStatsPageState();}
 class _PhotoStatsPageState extends State<PhotoStatsPage>{int bytes=0,measured=0;bool measuring=true;@override void initState(){super.initState();_measure();}Future<void> _measure()async{var b=0,n=0;for(final a in widget.photos){try{final f=await a.file;if(f!=null&&await f.exists()){b+=await f.length();n++;if(mounted&&n%10==0)setState((){bytes=b;measured=n;});}}catch(_){}}if(mounted)setState((){bytes=b;measured=n;measuring=false;});}String _size(int b)=>b>=1073741824?(b/1073741824).toStringAsFixed(2)+' GB':b>=1048576?(b/1048576).toStringAsFixed(1)+' MB':(b/1024).toStringAsFixed(0)+' KB';@override Widget build(BuildContext context){final cs=Theme.of(context).colorScheme;final total=max(1,widget.photos.length);final years=<int>{};final tc=<String,int>{};final folders=<String,int>{};int land=0,port=0,square=0;double px=0;for(final a in widget.photos){years.add(a.createDateTime.year);if(a.width>a.height)land++;else if(a.height>a.width)port++;else square++;px+=a.width*a.height;final folder=(a.relativePath??'Unknown').split('/').where((e)=>e.isNotEmpty).lastOrNull??'Unknown';folders[folder]=(folders[folder]??0)+1;for(final t in widget.tags[a.id]??{})tc[t]=(tc[t]??0)+1;}final tags=tc.entries.toList()..sort((a,b)=>b.value.compareTo(a.value));final topFolders=folders.entries.toList()..sort((a,b)=>b.value.compareTo(a.value));final named=widget.photos.where((a)=>(widget.names[a.id]??'').trim().isNotEmpty).length;final cap=widget.photos.where((a)=>(widget.captions[a.id]??'').trim().isNotEmpty).length;final tagCoverage=(widget.tags.length/total*100).round();final favoriteRate=(widget.favorites.length/total*100).round();final score=((tagCoverage*.35)+(favoriteRate*.15)+(named/total*25)+(cap/total*15)+(years.length.clamp(0,10)/10*10)).round().clamp(0,100);final rec=<String>[];if(tagCoverage<25)rec.add('Tag more memories to make AI Explore more precise.');if(named<total*.2)rec.add('Name important memories for better discovery.');if(cap<total*.15)rec.add('Add captions to preserve context for future stories.');if(widget.favorites.isEmpty)rec.add('Favorite your best memories to create instant highlights.');if(rec.isEmpty)rec.add('Your metadata is healthy. Try AI Explore for smart discovery.');return RefreshIndicator(onRefresh:_measure,child:ListView(padding:const EdgeInsets.fromLTRB(14,14,14,110),children:[Row(children:[const Expanded(child:Text('Photo Intelligence',style:TextStyle(fontSize:29,fontWeight:FontWeight.w900))),Chip(avatar:const Icon(Icons.auto_awesome,size:16),label:const Text('AI'))]),Text('Understand, organize and rediscover your library',style:TextStyle(color:cs.onSurfaceVariant)),const SizedBox(height:18),GridView.count(crossAxisCount:2,shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisSpacing:10,mainAxisSpacing:10,childAspectRatio:1.55,children:[_tile(context,Icons.photo_library_rounded,widget.photos.length.toString(),'Photos'),_tile(context,Icons.video_library_rounded,widget.videos.length.toString(),'Videos'),_tile(context,Icons.favorite_rounded,widget.favorites.length.toString(),'Favorites'),_tile(context,Icons.lock_rounded,widget.hiddenIds.length.toString(),'Private'),_tile(context,Icons.sell_outlined,widget.tags.length.toString(),'Tagged'),_tile(context,Icons.folder_rounded,widget.albums.where((a)=>!a.isAll).length.toString(),'Folders')]),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[const Icon(Icons.psychology_alt_outlined),const SizedBox(width:8),const Text('AI Library Health',style:TextStyle(fontSize:19,fontWeight:FontWeight.w900)),const Spacer(),Text(score.toString()+'/100',style:const TextStyle(fontWeight:FontWeight.w900))]),const SizedBox(height:10),LinearProgressIndicator(value:score.toDouble()/100,minHeight:8,borderRadius:BorderRadius.circular(8)),const SizedBox(height:10),Text(score>=80?'Your library is beautifully organized.':score>=55?'Strong foundation — more metadata will unlock smarter discovery.':'Your memories are rich; tags, names and captions will make them easier to rediscover.'),const SizedBox(height:10),Wrap(spacing:7,children:[Chip(label:Text(tagCoverage.toString()+'% tagged')),Chip(label:Text(favoriteRate.toString()+'% loved')),Chip(label:Text(widget.videos.length.toString()+' videos'))])]))),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('AI recommendations',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),...rec.map((x)=>ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.auto_awesome),title:Text(x)))]))),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('AI story ideas',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),_idea('Favorite memories','A highlight story from your loved photos.'),_idea('Family video diary',widget.videos.isEmpty?'Add videos to build a family video diary.':widget.videos.length.toString()+' videos are ready.'),_idea('Untagged treasure hunt',rec.first)]))),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Library overview',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),Text('Named photos: '+named.toString()),Text('Captions: '+cap.toString()),Text('Date span: '+(years.isEmpty?'—':years.reduce(min).toString()+' → '+years.reduce(max).toString())),Text('Orientation: '+land.toString()+' landscape • '+port.toString()+' portrait • '+square.toString()+' square'),Text('Estimated pixels: '+(px/1000000).toStringAsFixed(0)+' MP'),Text('Folders: '+widget.albums.where((a)=>!a.isAll).length.toString())]))),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Most used tags',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),tags.isEmpty?const Text('No tags yet. Long-press any photo to add them.'):Wrap(spacing:7,runSpacing:7,children:tags.take(15).map((e)=>Chip(label:Text(e.key+' • '+e.value.toString()))).toList())]))),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Top phone folders',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),...topFolders.take(8).map((e)=>ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.folder_outlined),title:Text(e.key),trailing:Text(e.value.toString())))]))),const SizedBox(height:12),Card(child:ListTile(leading:const Icon(Icons.storage_rounded),title:Text(measuring?'Calculating photo storage…':'Photo storage'),subtitle:Text(measuring?measured.toString()+' files measured':_size(bytes)),onTap:_measure))]));}Widget _idea(String t,String s)=>ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.auto_awesome),title:Text(t,style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text(s));Widget _tile(BuildContext c,IconData i,String v,String l){final cs=Theme.of(c).colorScheme;return Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Icon(i,color:cs.primary),const Spacer(),Text(v,style:const TextStyle(fontSize:21,fontWeight:FontWeight.w900)),Text(l,style:TextStyle(fontSize:11,color:cs.onSurfaceVariant))])));}}
 class DeviceAlbumPage extends StatefulWidget {
   final List<AssetPathEntity> paths;
