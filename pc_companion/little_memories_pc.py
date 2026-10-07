@@ -3,6 +3,7 @@ import json
 import os
 import socket
 import threading
+import sys
 import urllib.parse
 import urllib.request
 import tkinter as tk
@@ -120,7 +121,8 @@ class Companion(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.close_app)
 
     def settings_path(self):
-        return os.path.join(self.folder.get(), SETTINGS)
+        root = os.environ.get("APPDATA") or os.path.expanduser("~")
+        return os.path.join(root, "Little Memories", SETTINGS)
 
     def load_settings(self):
         try:
@@ -140,7 +142,7 @@ class Companion(tk.Tk):
             folder = self.folder.get().strip()
             if not folder:
                 return
-            os.makedirs(folder, exist_ok=True)
+            os.makedirs(os.path.dirname(self.settings_path()), exist_ok=True)
             with open(self.settings_path(), "w", encoding="utf-8") as f:
                 json.dump({
                     "folder": folder,
@@ -158,7 +160,8 @@ class Companion(tk.Tk):
             key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
                 if self.start_with_windows.get():
-                    winreg.SetValueEx(key, "Little Memories PC Companion", 0, winreg.REG_SZ, f'"{os.path.abspath(__file__)}"')
+                    command = sys.executable if getattr(sys, "frozen", False) else os.path.abspath(__file__)
+                    winreg.SetValueEx(key, "Little Memories PC Companion", 0, winreg.REG_SZ, f'"{command}"')
                     self.write("Start with Windows enabled.")
                 else:
                     try:
