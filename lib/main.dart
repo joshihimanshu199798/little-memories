@@ -974,7 +974,7 @@ class _HomeState extends State<Home> {
       ]))),
       if(custom.isNotEmpty)SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.fromLTRB(16,4,16,8),child:Text('Your albums',style:const TextStyle(fontSize:20,fontWeight:FontWeight.w900)))),
       if(custom.isNotEmpty)SliverToBoxAdapter(child:SizedBox(height:148,child:ListView(scrollDirection:Axis.horizontal,padding:const EdgeInsets.symmetric(horizontal:16),children:custom.map((e){
-        final cover=e.value.map(_find).whereType<AssetEntity>().firstOrNull;
+        AssetEntity? cover; for(final id in e.value){final a=_find(id);if(a!=null){cover=a;break;}}
         return Padding(padding:const EdgeInsets.only(right:12),child:SizedBox(width:190,child:Card(clipBehavior:Clip.antiAlias,child:Stack(fit:StackFit.expand,children:[
           cover==null?Container(color:Theme.of(context).colorScheme.surfaceContainerHighest,child:const Icon(Icons.photo_album_outlined,size:40)):Thumb(cover),
           DecoratedBox(decoration:BoxDecoration(gradient:LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,colors:[Colors.transparent,Colors.black.withValues(alpha:.8)]))),
