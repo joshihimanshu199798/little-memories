@@ -10,6 +10,7 @@ from tkinter import filedialog, messagebox, ttk
 
 APP_NAME = "Little Memories PC Companion"
 MANIFEST = ".little_memories_backup.json"
+PAIRING = ".little_memories_pairing.json"
 
 
 class Companion(tk.Tk):
@@ -20,6 +21,7 @@ class Companion(tk.Tk):
         self.minsize(720, 560)
 
         self.url = tk.StringVar()
+        self.paired = tk.BooleanVar(value=False)
         self.folder = tk.StringVar(
             value=os.path.join(os.path.expanduser("~"), "Pictures", "Little Memories")
         )
@@ -49,7 +51,10 @@ class Companion(tk.Tk):
             text="Paste the address shown in Little Memories → Connect to Windows PC:",
         ).pack(anchor="w")
         ttk.Entry(box, textvariable=self.url).pack(fill="x", pady=8)
-        ttk.Button(box, text="Test connection", command=self.test).pack(anchor="e")
+        row2 = ttk.Frame(box)
+        row2.pack(fill="x")
+        ttk.Button(row2, text="Test connection", command=self.test).pack(side="left")
+        ttk.Button(row2, text="Reconnect paired phone", command=self.reconnect_paired).pack(side="left", padx=8)
 
         dest = ttk.LabelFrame(root, text="2. Backup folder", padding=14)
         dest.pack(fill="x", pady=12)
@@ -103,6 +108,42 @@ class Companion(tk.Tk):
         if p:
             self.folder.set(p)
 
+    def pairing_path(self):
+        return os.path.join(self.folder.get(), PAIRING)
+
+    def save_pairing(self):
+        try:
+            u = self.url.get().strip()
+            parsed = urllib.parse.urlparse(u)
+            params = urllib.parse.parse_qs(parsed.query)
+            pair = params.get("pair", [None])[0]
+            if not pair:
+                return
+            base = f"{parsed.scheme}://{parsed.netloc}/"
+            os.makedirs(self.folder.get(), exist_ok=True)
+            with open(self.pairing_path(), "w", encoding="utf-8") as f:
+                json.dump({"base_url": base, "pair": pair}, f, indent=2)
+            self.paired.set(True)
+            self.write("Trusted phone pairing saved on this PC.")
+        except Exception as e:
+            self.write(f"Could not save pairing: {e}")
+
+    def load_pairing(self):
+        try:
+            with open(self.pairing_path(), "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return None
+
+    def reconnect_paired(self):
+        pair = self.load_pairing()
+        if not pair:
+            messagebox.showinfo(APP_NAME, "No trusted phone is saved yet. Connect once using the phone QR address.")
+            return
+        self.url.set(pair.get("base_url", "") + "?pair=" + urllib.parse.quote(pair.get("pair", ""), safe=""))
+        if self.test():
+            self.write("Trusted phone reconnected without scanning a new QR code.")
+
     def base(self):
         u = self.url.get().strip()
         if not u.startswith("http://") and not u.startswith("https://"):
@@ -120,6 +161,7 @@ class Companion(tk.Tk):
             self.data = j.get("photos", [])
             self.status.set(f"Connected: {len(self.data)} photos available.")
             self.write(f"Connected successfully — {len(self.data)} photos available.")
+            self.save_pairing()
             return True
         except Exception as e:
             self.status.set("Connection failed.")
