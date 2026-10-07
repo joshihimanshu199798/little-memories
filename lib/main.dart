@@ -899,67 +899,176 @@ class _HomeState extends State<Home> {
   }
 
   Widget _dashboard() {
-    final recent = photos.take(18).toList();
-    final favs = photos.where((a) => favorites.contains(a.id)).take(12).toList();
+    final recent = photos.take(12).toList();
+    final favs = photos.where((a) => favorites.contains(a.id)).take(10).toList();
     final featured = recent.isNotEmpty ? recent.first : null;
-    final t = comicThemes[widget.themeIndex.clamp(0, comicThemes.length - 1)];
     final cs = Theme.of(context).colorScheme;
-    return RefreshIndicator(onRefresh: _refreshPhotos, child: _themeBackdrop(child: ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 110),
-      children: [
-        Row(children: [
-          Container(width: 44, height: 44, decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle), child: Icon(Icons.auto_awesome_rounded, color: cs.onPrimary)),
-          const SizedBox(width: 11),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(childName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-            Text('A private home for your best moments', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
-          ])),
-          IconButton(style: IconButton.styleFrom(backgroundColor: cs.surface, foregroundColor: cs.onSurface, side: BorderSide(color: cs.outlineVariant)), onPressed: () => setState(() => showAllPhotos = true), icon: const Icon(Icons.search_rounded)),
-          const SizedBox(width: 4),
-          IconButton(style: IconButton.styleFrom(backgroundColor: cs.surface, foregroundColor: cs.onSurface, side: BorderSide(color: cs.outlineVariant)), onPressed: () => setState(() => tab = 3), icon: const Icon(Icons.tune_rounded)),
-        ]),
-        const SizedBox(height: 22),
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          const Expanded(child: Text('KEEP THE\nGOOD DAYS CLOSE', style: TextStyle(fontSize: 31, height: .98, fontWeight: FontWeight.w900, letterSpacing: -.7))),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(20)), child: Text(photos.length.toString() + ' memories', style: TextStyle(color: cs.onPrimaryContainer, fontSize: 11, fontWeight: FontWeight.w800))),
-        ]),
-        const SizedBox(height: 14),
-        if (featured != null) _memoryHeroCard(featured, recent, t) else Card(child: Padding(padding: const EdgeInsets.all(28), child: Column(children: [
-          Icon(Icons.photo_library_outlined, size: 54, color: cs.primary),
+
+    return RefreshIndicator(
+      onRefresh: _refreshPhotos,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 20, 14, 18),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [cs.primary, cs.primaryContainer]),
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [BoxShadow(color: cs.primary.withValues(alpha: .18), blurRadius: 24, offset: const Offset(0, 10))],
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('MEMORY STUDIO', style: TextStyle(color: cs.onPrimary, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 2.2)),
+                  const SizedBox(height: 6),
+                  Text(childName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: cs.onPrimary, fontSize: 27, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 3),
+                  Text('Your private story, beautifully organized.', style: TextStyle(color: cs.onPrimary.withValues(alpha: .78), fontSize: 12)),
+                ])),
+                IconButton(style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: .18), foregroundColor: cs.onPrimary), onPressed: () => setState(() => tab = 3), icon: const Icon(Icons.tune_rounded)),
+              ]),
+              const SizedBox(height: 18),
+              Row(children: [
+                Expanded(child: _studioStat(photos.length.toString(), 'MEMORIES', cs)),
+                const SizedBox(width: 8),
+                Expanded(child: _studioStat(favs.length.toString(), 'LOVED', cs)),
+                const SizedBox(width: 8),
+                Expanded(child: _studioStat(_albumCount().toString(), 'MONTHS', cs)),
+              ]),
+            ]),
+          ),
+          const SizedBox(height: 20),
+          if (featured != null) ...[
+            Row(children: [
+              const Expanded(child: Text('THE MOMENT', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.5))),
+              TextButton.icon(onPressed: () => _openPhoto(featured, recent), icon: const Icon(Icons.open_in_new_rounded, size: 16), label: const Text('Open')),
+            ]),
+            const SizedBox(height: 7),
+            SizedBox(height: 390, child: InkWell(
+              onTap: () => _openPhoto(featured, recent),
+              borderRadius: BorderRadius.circular(30),
+              child: ClipRRect(borderRadius: BorderRadius.circular(30), child: Stack(fit: StackFit.expand, children: [
+                Thumb(featured),
+                DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black.withValues(alpha: .04), Colors.black.withValues(alpha: .82)], stops: const [.35, 1]))),
+                Positioned(top: 16, left: 16, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7), decoration: BoxDecoration(color: Colors.black.withValues(alpha: .38), borderRadius: BorderRadius.circular(30)), child: const Text('LATEST MEMORY', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.1)))),
+                Positioned(top: 12, right: 12, child: IconButton(
+                  style: IconButton.styleFrom(backgroundColor: Colors.black.withValues(alpha: .38), foregroundColor: Colors.white),
+                  onPressed: () async { setState(() => favorites.contains(featured.id) ? favorites.remove(featured.id) : favorites.add(featured.id)); await _save(); },
+                  icon: Icon(favorites.contains(featured.id) ? Icons.favorite_rounded : Icons.favorite_border_rounded),
+                )),
+                Positioned(left: 20, right: 20, bottom: 20, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text((names[featured.id] ?? '').trim().isEmpty ? 'A day worth remembering' : names[featured.id]!, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 28, height: 1.0, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 7),
+                  Text(featured.createDateTime.day.toString() + ' ' + _monthName(featured.createDateTime.month) + ' ' + featured.createDateTime.year.toString(), style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700)),
+                ])),
+              ])),
+            )),
+          ] else Card(child: Padding(padding: const EdgeInsets.all(28), child: Column(children: [
+            Icon(Icons.photo_camera_back_rounded, size: 58, color: cs.primary),
+            const SizedBox(height: 12),
+            const Text('Your story starts here', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 6),
+            Text('Allow photo access and Little Memories will build your private memory space.', textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant)),
+          ]))),
+          const SizedBox(height: 24),
+          const Text('JUMP INTO YOUR MEMORIES', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
           const SizedBox(height: 10),
-          const Text('Your story starts here', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 6),
-          Text('Bring your favorite photos into Little Memories and we will turn them into a beautiful private story.', textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant)),
-        ]))),
-        const SizedBox(height: 22),
-        Row(children: [const Expanded(child: Text('Quick access', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900))), TextButton(onPressed: () => setState(() => tab = 1), child: const Text('Albums'))]),
-        const SizedBox(height: 4),
-        SizedBox(height: 92, child: ListView(scrollDirection: Axis.horizontal, children: [
-          _editorialAction(Icons.collections_bookmark_rounded, 'Albums', 'Explore', () => setState(() => tab = 1), cs),
-          _editorialAction(Icons.favorite_rounded, 'Favorites', favs.length.toString() + ' saved', () => setState(() => tab = 2), cs),
-          _editorialAction(Icons.auto_awesome_rounded, 'Moments', 'On this day', _openMomentsPage, cs),
-          _editorialAction(Icons.copy_all_rounded, 'Clean up', 'Duplicates', () => Navigator.push(context, MaterialPageRoute(builder: (_) => DuplicatePhotosPage(photos: photos))), cs),
-        ])),
-        const SizedBox(height: 26),
-        Row(children: [const Expanded(child: Text('Recently', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900))), TextButton(onPressed: () => setState(() => showAllPhotos = true), child: const Text('See all'))]),
-        const SizedBox(height: 4),
-        _editorialRecentStrip(recent),
-        if (favs.isNotEmpty) ...[const SizedBox(height: 26), Row(children: [const Expanded(child: Text('Loved memories', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900))), TextButton(onPressed: () => setState(() => tab = 2), child: const Text('View all'))]), _editorialRecentStrip(favs)],
-        const SizedBox(height: 26),
-        Row(children: [const Expanded(child: Text('Your collections', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900))), TextButton(onPressed: () => setState(() => tab = 1), child: const Text('See all'))]),
-        const SizedBox(height: 4),
-        _editorialAlbumPreview(),
-        const SizedBox(height: 24),
-        Card(color: cs.primaryContainer, child: InkWell(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => UltimateMemoryCenter(photos: photos, favorites: favorites, timelines: timelines, names: names, captions: captions, hiddenIds: hiddenIds))), child: Padding(padding: const EdgeInsets.all(17), child: Row(children: [
-          Container(width: 46, height: 46, decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle), child: Icon(Icons.auto_awesome, color: cs.onPrimary)),
-          const SizedBox(width: 12),
-          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Ultimate Memory Center', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)), SizedBox(height: 3), Text('Milestones • storage • family • export', style: TextStyle(fontSize: 11))])),
-          const Icon(Icons.arrow_forward_rounded),
-        ])))),
-      ],
-    )));
+          Row(children: [
+            _studioAction(Icons.collections_rounded, 'Albums', 'Collections', () => setState(() => tab = 1), cs),
+            const SizedBox(width: 10),
+            _studioAction(Icons.favorite_rounded, 'Loved', favs.length.toString() + ' saved', () => setState(() => tab = 2), cs),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            _studioAction(Icons.auto_awesome_rounded, 'Moments', 'On this day', _openMomentsPage, cs),
+            const SizedBox(width: 10),
+            _studioAction(Icons.search_rounded, 'Search', 'Find anything', () => setState(() => showAllPhotos = true), cs),
+          ]),
+          if (recent.isNotEmpty) ...[
+            const SizedBox(height: 28),
+            Row(children: [
+              const Expanded(child: Text('RECENTLY CAPTURED', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.5))),
+              TextButton(onPressed: () => setState(() => showAllPhotos = true), child: const Text('All photos')),
+            ]),
+            const SizedBox(height: 8),
+            SizedBox(height: 205, child: ListView.separated(
+              scrollDirection: Axis.horizontal, itemCount: recent.length, separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (_, i) {
+                final a = recent[i];
+                return SizedBox(width: 158, child: InkWell(
+                  onTap: () => _openPhoto(a, recent), borderRadius: BorderRadius.circular(24),
+                  child: ClipRRect(borderRadius: BorderRadius.circular(24), child: Stack(fit: StackFit.expand, children: [
+                    Thumb(a),
+                    DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black.withValues(alpha: .78)]))),
+                    Positioned(left: 11, right: 11, bottom: 11, child: Text((names[a.id] ?? '').trim().isEmpty ? 'Memory ' + (i + 1).toString() : names[a.id]!, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13))),
+                    if (favorites.contains(a.id)) const Positioned(top: 9, right: 9, child: Icon(Icons.favorite_rounded, color: Colors.white, size: 18)),
+                  ])),
+                ));
+              },
+            )),
+          ],
+          if (favs.isNotEmpty) ...[
+            const SizedBox(height: 28),
+            Row(children: [
+              const Expanded(child: Text('LOVED MEMORIES', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.5))),
+              TextButton(onPressed: () => setState(() => tab = 2), child: const Text('View all')),
+            ]),
+            const SizedBox(height: 8),
+            SizedBox(height: 118, child: ListView.separated(
+              scrollDirection: Axis.horizontal, itemCount: favs.length, separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (_, i) => InkWell(onTap: () => _openPhoto(favs[i], favs), borderRadius: BorderRadius.circular(20), child: ClipRRect(borderRadius: BorderRadius.circular(20), child: SizedBox(width: 118, child: Thumb(favs[i])))),
+            )),
+          ],
+          const SizedBox(height: 28),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(26), border: Border.all(color: cs.outlineVariant)),
+            child: Row(children: [
+              Container(width: 48, height: 48, decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(16)), child: Icon(Icons.auto_awesome_rounded, color: cs.onPrimary)),
+              const SizedBox(width: 13),
+              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Ultimate Memory Center', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                SizedBox(height: 4),
+                Text('Smart albums • storage • milestones • family tools', style: TextStyle(fontSize: 11)),
+              ])),
+              IconButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => UltimateMemoryCenter(photos: photos, favorites: favorites, timelines: timelines, names: names, captions: captions, hiddenIds: hiddenIds))), icon: const Icon(Icons.arrow_forward_rounded)),
+            ]),
+          ),
+        ],
+      ),
+    );
   }
+
+  Widget _studioStat(String value, String label, ColorScheme cs) => Container(
+    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 7),
+    decoration: BoxDecoration(color: Colors.white.withValues(alpha: .16), borderRadius: BorderRadius.circular(17)),
+    child: Column(children: [
+      Text(value, style: TextStyle(color: cs.onPrimary, fontSize: 19, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 2),
+      Text(label, style: TextStyle(color: cs.onPrimary.withValues(alpha: .72), fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .8)),
+    ]),
+  );
+
+  Widget _studioAction(IconData icon, String title, String subtitle, VoidCallback onTap, ColorScheme cs) => Expanded(
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        height: 82, padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: cs.outlineVariant)),
+        child: Row(children: [
+          Container(width: 42, height: 42, decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(14)), child: Icon(icon, color: cs.onPrimaryContainer)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+            const SizedBox(height: 2),
+            Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10)),
+          ])),
+        ]),
+      ),
+    ),
+  );
 
   Widget _memoryHeroCard(AssetEntity a, List<AssetEntity> all, ComicTheme t) {
     final cs = Theme.of(context).colorScheme;
