@@ -232,6 +232,7 @@ class _AppState extends State<LittleMemoriesApp> {
     title: 'Little Memories',
     theme: ThemeData(useMaterial3:true,colorSchemeSeed:t.seed,scaffoldBackgroundColor:t.background,cardTheme:CardThemeData(color:t.surface,elevation:0,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.radius),side:BorderSide(color:t.seed.withValues(alpha:.18),width:2))),appBarTheme:AppBarTheme(backgroundColor:t.background,elevation:0),filledButtonTheme:FilledButtonThemeData(style:FilledButton.styleFrom(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(16),side:BorderSide(color:t.seed,width:1.5))))),
     darkTheme:ThemeData.dark(useMaterial3:true).copyWith(colorScheme:ColorScheme.fromSeed(seedColor:t.seed,brightness:Brightness.dark)),themeMode:dark?ThemeMode.dark:ThemeMode.light,home:Home(themeIndex:themeIndex,onDark:(v)=>setState(()=>dark=v),onTheme:(v) async {final p=await SharedPreferences.getInstance();await p.setInt('comicTheme',v);if(mounted)setState(()=>themeIndex=v);}),); }
+}
 
 class Home extends StatefulWidget {
   final ValueChanged<bool> onDark; final ValueChanged<int> onTheme; final int themeIndex;
