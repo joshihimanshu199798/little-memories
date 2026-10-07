@@ -233,6 +233,10 @@ const comicThemes=<ComicTheme>[
   ComicTheme('Polaroid','Film frames, compact cards and photo-book feel','sans-serif',Color(0xFF6B6258),Color(0xFFECE7DE),Color(0xFFFFFEFA),8,1,10,3),
   ComicTheme('Midnight','Cinematic dark gallery with glowing accents','sans-serif',Color(0xFF8B7CFF),Color(0xFF090B14),Color(0xFF151927),18,2,20,4),
   ComicTheme('Minimal','Clean editorial layout and calm spacing','sans-serif',Color(0xFF3D6B5B),Color(0xFFF7F8F6),Color(0xFFFFFFFF),12,0,12,5),
+  ComicTheme('Aurora','Iridescent night, glass panels and luminous accents','sans-serif',Color(0xFF6C63FF),Color(0xFF0B1020),Color(0xFF151C32),26,3,28,6),
+  ComicTheme('Sage Garden','Natural greens, warm paper and calm organic shapes','sans-serif',Color(0xFF3E8064),Color(0xFFF1F5EE),Color(0xFFFFFEFA),20,2,22,7),
+  ComicTheme('Sunset Film','Warm film tones, bold type and photo-journal energy','sans-serif',Color(0xFFE36B3D),Color(0xFFFFF2E8),Color(0xFFFFFBF7),16,2,18,8),
+  ComicTheme('Mono Studio','Black, white and graphite with a premium gallery feel','sans-serif',Color(0xFF22252A),Color(0xFFF3F4F6),Color(0xFFFFFFFF),10,1,12,9),
 ];
 
 class LittleMemoriesApp extends StatefulWidget {
@@ -284,6 +288,8 @@ class _HomeState extends State<Home> {
   bool galleryShowNames = false;
   bool loading = true, permissionDenied = false;
   List<AssetEntity> photos = [];
+  List<AssetPathEntity> deviceAlbums = [];
+  List<AssetPathEntity> deviceDeletedAlbums = [];
   List<Timeline> timelines = [];
   Set<String> favorites = {};
   Map<String, String> names = {}, captions = {};
@@ -324,19 +330,46 @@ class _HomeState extends State<Home> {
   }
 
   Future<void> _refreshPhotos() async {
-    final paths = await PhotoManager.getAssetPathList(type: RequestType.image, onlyAll: true);
-    if (paths.isNotEmpty) {
+    final allPaths = await PhotoManager.getAssetPathList(type: RequestType.image, onlyAll: false, hasAll: true);
+    final usable = <AssetPathEntity>[];
+    final deleted = <AssetPathEntity>[];
+    for (final p in allPaths) {
+      final n = p.name.toLowerCase();
+      if (n.contains('recently deleted') || n.contains('trash') || n.contains('recycle bin') || n == 'bin' || n.contains('recently removed')) {
+        deleted.add(p);
+      } else if (p.assetCount > 0 || p.isAll) {
+        usable.add(p);
+      }
+    }
+    deviceAlbums = usable;
+    deviceDeletedAlbums = deleted;
+    final allAlbum = usable.where((p) => p.isAll).toList();
+    if (allAlbum.isNotEmpty) {
       final all = <AssetEntity>[];
       var page = 0;
       const pageSize = 200;
       while (true) {
-        final batch = await paths.first.getAssetListPaged(page: page, size: pageSize);
+        final batch = await allAlbum.first.getAssetListPaged(page: page, size: pageSize);
         if (batch.isEmpty) break;
         all.addAll(batch);
         if (batch.length < pageSize) break;
         page++;
       }
       photos = all;
+    } else if (usable.isNotEmpty) {
+      final all = <AssetEntity>[];
+      for (final p in usable) {
+        var page = 0;
+        while (true) {
+          final batch = await p.getAssetListPaged(page: page, size: 200);
+          if (batch.isEmpty) break;
+          all.addAll(batch);
+          if (batch.length < 200) break;
+          page++;
+        }
+      }
+      final seen = <String>{};
+      photos = all.where((a) => seen.add(a.id)).toList();
     }
     if (mounted) setState(() {});
   }
@@ -899,137 +932,39 @@ class _HomeState extends State<Home> {
   }
 
   Widget _dashboard() {
-    final recent = photos.take(12).toList();
-    final favs = photos.where((a) => favorites.contains(a.id)).take(10).toList();
-    final featured = recent.isNotEmpty ? recent.first : null;
     final cs = Theme.of(context).colorScheme;
-
-    return RefreshIndicator(
-      onRefresh: _refreshPhotos,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-        children: [
-          if (featured != null) ...[
-            Row(children: [
-              const Expanded(child: Text('THE MOMENT', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.5))),
-              TextButton.icon(onPressed: () => _openPhoto(featured, recent), icon: const Icon(Icons.open_in_new_rounded, size: 16), label: const Text('Open')),
-            ]),
-            const SizedBox(height: 7),
-            SizedBox(height: 390, child: InkWell(
-              onTap: () => _openPhoto(featured, recent),
-              borderRadius: BorderRadius.circular(30),
-              child: ClipRRect(borderRadius: BorderRadius.circular(30), child: Stack(fit: StackFit.expand, children: [
-                Thumb(featured),
-                DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black.withValues(alpha: .04), Colors.black.withValues(alpha: .82)], stops: const [.35, 1]))),
-                Positioned(top: 16, left: 16, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7), decoration: BoxDecoration(color: Colors.black.withValues(alpha: .38), borderRadius: BorderRadius.circular(30)), child: const Text('LATEST MEMORY', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.1)))),
-                Positioned(top: 12, right: 12, child: IconButton(
-                  style: IconButton.styleFrom(backgroundColor: Colors.black.withValues(alpha: .38), foregroundColor: Colors.white),
-                  onPressed: () async { setState(() => favorites.contains(featured.id) ? favorites.remove(featured.id) : favorites.add(featured.id)); await _save(); },
-                  icon: Icon(favorites.contains(featured.id) ? Icons.favorite_rounded : Icons.favorite_border_rounded),
-                )),
-                Positioned(left: 20, right: 20, bottom: 20, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text((names[featured.id] ?? '').trim().isEmpty ? 'A day worth remembering' : names[featured.id]!, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 28, height: 1.0, fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 7),
-                  Text(featured.createDateTime.day.toString() + ' ' + _monthName(featured.createDateTime.month) + ' ' + featured.createDateTime.year.toString(), style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700)),
-                ])),
-              ])),
-            )),
-          ] else Card(child: Padding(padding: const EdgeInsets.all(28), child: Column(children: [
-            Icon(Icons.photo_camera_back_rounded, size: 58, color: cs.primary),
-            const SizedBox(height: 12),
-            const Text('Your story starts here', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 6),
-            Text('Allow photo access and Little Memories will build your private memory space.', textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant)),
-          ]))),
-          const SizedBox(height: 24),
-          const Text('JUMP INTO YOUR MEMORIES', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-          const SizedBox(height: 10),
-          Row(children: [
-            _studioAction(Icons.collections_rounded, 'Albums', 'Collections', () => setState(() => tab = 1), cs),
-            const SizedBox(width: 10),
-            _studioAction(Icons.favorite_rounded, 'Loved', favs.length.toString() + ' saved', () => setState(() => tab = 2), cs),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            _studioAction(Icons.auto_awesome_rounded, 'Moments', 'On this day', _openMomentsPage, cs),
-            const SizedBox(width: 10),
-            _studioAction(Icons.search_rounded, 'Search', 'Find anything', () => setState(() => showAllPhotos = true), cs),
-          ]),
-          if (recent.isNotEmpty) ...[
-            const SizedBox(height: 28),
-            Row(children: [
-              const Expanded(child: Text('RECENTLY CAPTURED', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.5))),
-              TextButton(onPressed: () => setState(() => showAllPhotos = true), child: const Text('All photos')),
-            ]),
-            const SizedBox(height: 8),
-            SizedBox(height: 205, child: ListView.separated(
-              scrollDirection: Axis.horizontal, itemCount: recent.length, separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (_, i) {
-                final a = recent[i];
-                return SizedBox(width: 158, child: InkWell(
-                  onTap: () => _openPhoto(a, recent), borderRadius: BorderRadius.circular(24),
-                  child: ClipRRect(borderRadius: BorderRadius.circular(24), child: Stack(fit: StackFit.expand, children: [
-                    Thumb(a),
-                    DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black.withValues(alpha: .78)]))),
-                    Positioned(left: 11, right: 11, bottom: 11, child: Text((names[a.id] ?? '').trim().isEmpty ? 'Memory ' + (i + 1).toString() : names[a.id]!, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13))),
-                    if (favorites.contains(a.id)) const Positioned(top: 9, right: 9, child: Icon(Icons.favorite_rounded, color: Colors.white, size: 18)),
-                  ])),
-                ));
-              },
-            )),
-          ],
-          if (favs.isNotEmpty) ...[
-            const SizedBox(height: 28),
-            Row(children: [
-              const Expanded(child: Text('LOVED MEMORIES', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.5))),
-              TextButton(onPressed: () => setState(() => tab = 2), child: const Text('View all')),
-            ]),
-            const SizedBox(height: 8),
-            SizedBox(height: 118, child: ListView.separated(
-              scrollDirection: Axis.horizontal, itemCount: favs.length, separatorBuilder: (_, __) => const SizedBox(width: 10),
-              itemBuilder: (_, i) => InkWell(onTap: () => _openPhoto(favs[i], favs), borderRadius: BorderRadius.circular(20), child: ClipRRect(borderRadius: BorderRadius.circular(20), child: SizedBox(width: 118, child: Thumb(favs[i])))),
-            )),
-          ],
-          const SizedBox(height: 28),
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(26), border: Border.all(color: cs.outlineVariant)),
-            child: Row(children: [
-              Container(width: 48, height: 48, decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(16)), child: Icon(Icons.auto_awesome_rounded, color: cs.onPrimary)),
-              const SizedBox(width: 13),
-              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Ultimate Memory Center', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-                SizedBox(height: 4),
-                Text('Smart albums • storage • milestones • family tools', style: TextStyle(fontSize: 11)),
-              ])),
-              IconButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => UltimateMemoryCenter(photos: photos, favorites: favorites, timelines: timelines, names: names, captions: captions, hiddenIds: hiddenIds))), icon: const Icon(Icons.arrow_forward_rounded)),
-            ]),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _studioAction(IconData icon, String title, String subtitle, VoidCallback onTap, ColorScheme cs) => Expanded(
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
-      child: Container(
-        height: 82, padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: cs.outlineVariant)),
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 10, 4),
         child: Row(children: [
-          Container(width: 42, height: 42, decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(14)), child: Icon(icon, color: cs.onPrimaryContainer)),
-          const SizedBox(width: 10),
-          Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-            const SizedBox(height: 2),
-            Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10)),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('All Photos', style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900, letterSpacing: -.7)),
+            Text(photos.length.toString() + ' photos on this phone', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
           ])),
+          IconButton(tooltip: 'Select photos', onPressed: () => setState(() => selectionMode = true), icon: const Icon(Icons.checklist_rounded)),
+          PopupMenuButton<int>(
+            tooltip: 'Grid density',
+            initialValue: grid,
+            onSelected: (v) async { setState(() => grid = v); await _save(); },
+            itemBuilder: (_) => [2,3,4,5,6,7,8].map((v) => PopupMenuItem(value: v, child: Text(v.toString() + ' columns'))).toList(),
+            child: const Icon(Icons.grid_4x4_rounded),
+          ),
+          IconButton(tooltip: 'Refresh', onPressed: _refreshPhotos, icon: const Icon(Icons.refresh_rounded)),
         ]),
       ),
-    ),
-  );
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
+        child: Row(children: [
+          FilterChip(label: const Text('Newest'), selected: galleryNewestFirst, onSelected: (_) => setState(() => galleryNewestFirst = true)),
+          const SizedBox(width: 7),
+          FilterChip(label: const Text('Oldest'), selected: !galleryNewestFirst, onSelected: (_) => setState(() => galleryNewestFirst = false)),
+          const SizedBox(width: 7),
+          FilterChip(label: Text('Hidden ' + hiddenIds.length.toString()), selected: false, onSelected: (_) => _showHiddenMemories()),
+        ]),
+      ),
+      Expanded(child: _gallery()),
+    ]);
+  }
 
   Widget _memoryHeroCard(AssetEntity a, List<AssetEntity> all, ComicTheme t) {
     final cs = Theme.of(context).colorScheme;
@@ -1196,34 +1131,145 @@ class _HomeState extends State<Home> {
   );
 
   Widget _albumsTab() {
-    final groups=<String,List<AssetEntity>>{};
-    for(final a in photos){final d=a.createDateTime;final k=d.year.toString()+'-'+d.month.toString().padLeft(2,'0');groups.putIfAbsent(k,()=>[]).add(a);}
-    final entries=groups.entries.toList()..sort((a,b)=>b.key.compareTo(a.key));
-    final custom=memoryAlbums.entries.toList();
-    final cs=Theme.of(context).colorScheme;
-    return CustomScrollView(slivers:[SliverPadding(padding:const EdgeInsets.fromLTRB(18,14,18,100),sliver:SliverList(delegate:SliverChildListDelegate([
-      Row(children:[const Expanded(child:Text('Albums',style:TextStyle(fontSize:32,fontWeight:FontWeight.w900,letterSpacing:-.7))),IconButton(style:IconButton.styleFrom(backgroundColor:cs.surface,side:BorderSide(color:cs.outlineVariant)),onPressed:()=>setState(()=>selectionMode=true),icon:const Icon(Icons.add_rounded),tooltip:'Create album from photos')]),
-      const SizedBox(height:3),Text('Collections of the moments you never want to lose.',style:TextStyle(color:cs.onSurfaceVariant,fontSize:12)),
-      const SizedBox(height:22),
-      Row(children:[const Expanded(child:Text('Recently',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900))),TextButton(onPressed:()=>setState(()=>tab=0),child:const Text('See all'))]),
-      const SizedBox(height:7),
-      if(favorites.isNotEmpty&&photos.isNotEmpty)_albumFeatureCard(title:'My Favorites',subtitle:favorites.length.toString()+' photos',asset:_find(favorites.first),onTap:()=>setState(()=>tab=2),favorite:true)
-      else if(photos.isNotEmpty)_albumFeatureCard(title:'Your latest memories',subtitle:photos.length.toString()+' photos',asset:photos.first,onTap:()=>setState(()=>tab=0))
-      else Card(child:Padding(padding:const EdgeInsets.all(24),child:Text('Your albums will appear here when photos are available.',style:TextStyle(color:cs.onSurfaceVariant)))),
-      const SizedBox(height:26),
-      Row(children:[const Expanded(child:Text('Your albums',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900))),if(custom.isNotEmpty)Text(custom.length.toString()+' collections',style:TextStyle(color:cs.onSurfaceVariant,fontSize:11,fontWeight:FontWeight.w700))]),
-      const SizedBox(height:10),
-      if(custom.isNotEmpty)Wrap(spacing:12,runSpacing:12,children:custom.map((e){AssetEntity? cover;for(final id in e.value){final a=_find(id);if(a!=null){cover=a;break;}}return _smallAlbumCard(title:e.key,subtitle:e.value.length.toString()+' photos',asset:cover,onTap:cover==null?null:()=>_openPhoto(cover!,e.value.map(_find).whereType<AssetEntity>().toList()));}).toList())
-      else Container(padding:const EdgeInsets.all(18),decoration:BoxDecoration(color:cs.surfaceContainerHighest.withValues(alpha:.55),borderRadius:BorderRadius.circular(20),border:Border.all(color:cs.outlineVariant)),child:Row(children:[Icon(Icons.collections_bookmark_outlined,color:cs.primary),const SizedBox(width:12),const Expanded(child:Text('Select photos anywhere in the gallery and tap + to create your first collection.'))])),
-      const SizedBox(height:28),
-      Row(children:[const Expanded(child:Text('Smart albums',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900))),Text('Automatically grouped',style:TextStyle(color:cs.onSurfaceVariant,fontSize:11))]),
-      const SizedBox(height:10),
-      if(entries.isNotEmpty)Wrap(spacing:12,runSpacing:12,children:entries.take(12).map((e){final parts=e.key.split('-');return _smallAlbumCard(title:parts[0]+' • '+_monthName(int.parse(parts[1])),subtitle:e.value.length.toString()+' photos',asset:e.value.first,onTap:()=>_openPhoto(e.value.first,e.value));}).toList()) else const Text('No smart albums yet.'),
-      const SizedBox(height:28),
-      Row(children:[const Expanded(child:Text('Tools',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900))),Text('Keep your library clean',style:TextStyle(color:cs.onSurfaceVariant,fontSize:11))]),
-      const SizedBox(height:10),
-      Row(children:[Expanded(child:FilledButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>DuplicatePhotosPage(photos:photos))),icon:const Icon(Icons.copy_all_outlined),label:const Text('Duplicates'))),const SizedBox(width:10),Expanded(child:FilledButton.tonalIcon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>BlurryPhotosPage(photos:photos))),icon:const Icon(Icons.blur_on),label:const Text('Blurry')))]),
-    ])))]);
+    final cs = Theme.of(context).colorScheme;
+    final custom = memoryAlbums.entries.toList();
+    return CustomScrollView(slivers: [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 110),
+        sliver: SliverList(delegate: SliverChildListDelegate([
+          Row(children: [
+            const Expanded(child: Text('Albums', style: TextStyle(fontSize: 31, fontWeight: FontWeight.w900, letterSpacing: -.8))),
+            IconButton(onPressed: _refreshPhotos, tooltip: 'Refresh folders', icon: const Icon(Icons.refresh_rounded)),
+          ]),
+          Text(deviceAlbums.length.toString() + ' folders from your phone', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+          const SizedBox(height: 18),
+
+          Row(children: [
+            Expanded(child: _specialAlbumCard(
+              icon: Icons.photo_library_rounded, title: 'All Photos',
+              subtitle: photos.length.toString() + ' photos',
+              onTap: () => setState(() => tab = 0),
+            )),
+            const SizedBox(width: 10),
+            Expanded(child: _specialAlbumCard(
+              icon: Icons.favorite_rounded, title: 'Favorites',
+              subtitle: favorites.length.toString() + ' loved',
+              onTap: () => setState(() => tab = 2),
+            )),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: _specialAlbumCard(
+              icon: Icons.lock_rounded, title: 'Hidden',
+              subtitle: hiddenIds.length.toString() + ' private',
+              onTap: _showHiddenMemories,
+            )),
+            const SizedBox(width: 10),
+            Expanded(child: _specialAlbumCard(
+              icon: Icons.delete_sweep_rounded, title: 'Recently Deleted',
+              subtitle: deviceDeletedAlbums.isEmpty ? 'Not exposed by Android' : deviceDeletedAlbums.map((p) => p.assetCount).fold<int>(0, (a,b) => a+b).toString() + ' items',
+              onTap: deviceDeletedAlbums.isEmpty
+                  ? () => _showDeletedInfo()
+                  : () => Navigator.push(context, MaterialPageRoute(builder: (_) => DeviceAlbumPage(paths: deviceDeletedAlbums, title: 'Recently Deleted', grid: grid, hiddenIds: const {}))),
+            )),
+          ]),
+
+          if (custom.isNotEmpty) ...[
+            const SizedBox(height: 28),
+            const Text('Little Memories collections', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 10),
+            Wrap(spacing: 12, runSpacing: 12, children: custom.map((e) {
+              AssetEntity? cover;
+              for (final id in e.value) { final a = _find(id); if (a != null) { cover = a; break; } }
+              final list = e.value.map(_find).whereType<AssetEntity>().toList();
+              return _smallAlbumCard(title: e.key, subtitle: list.length.toString() + ' photos', asset: cover, onTap: list.isEmpty ? null : () => _openPhoto(list.first, list));
+            }).toList()),
+          ],
+
+          const SizedBox(height: 30),
+          Row(children: [
+            const Expanded(child: Text('Phone folders', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900))),
+            Text('Live from device', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w700)),
+          ]),
+          const SizedBox(height: 10),
+          if (deviceAlbums.where((p) => !p.isAll).isEmpty)
+            Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(20)), child: const Text('No separate photo folders were exposed by the phone.'))
+          else
+            Wrap(spacing: 12, runSpacing: 12, children: deviceAlbums.where((p) => !p.isAll).map((p) => _deviceAlbumCard(p)).toList()),
+
+          const SizedBox(height: 30),
+          Row(children: [
+            const Expanded(child: Text('Smart albums', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900))),
+            Text('By month', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11)),
+          ]),
+          const SizedBox(height: 10),
+          _albumPreviewCards(),
+
+          const SizedBox(height: 30),
+          Row(children: [
+            const Expanded(child: Text('Library tools', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900))),
+            Text('Clean & organize', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11)),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: FilledButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DuplicatePhotosPage(photos: photos))), icon: const Icon(Icons.copy_all_outlined), label: const Text('Duplicates'))),
+            const SizedBox(width: 10),
+            Expanded(child: FilledButton.tonalIcon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BlurryPhotosPage(photos: photos))), icon: const Icon(Icons.blur_on), label: const Text('Blurry'))),
+          ]),
+        ])),
+      ),
+    ]);
+  }
+
+  Widget _specialAlbumCard({required IconData icon, required String title, required String subtitle, required VoidCallback onTap}) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(22), child: Container(
+      height: 104, padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [cs.primaryContainer, cs.surface]),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Row(children: [
+        Container(width: 44, height: 44, decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(15)), child: Icon(icon, color: cs.onPrimary)),
+        const SizedBox(width: 11),
+        Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+          const SizedBox(height: 3),
+          Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10)),
+        ])),
+      ]),
+    ));
+  }
+
+  Widget _deviceAlbumCard(AssetPathEntity path) {
+    final cs = Theme.of(context).colorScheme;
+    return FutureBuilder<List<AssetEntity>>(
+      future: path.getAssetListPaged(page: 0, size: 1),
+      builder: (_, s) {
+        final cover = s.data?.isNotEmpty == true ? s.data!.first : null;
+        return SizedBox(width: ((MediaQuery.of(context).size.width - 48) / 2).clamp(145.0, 220.0), height: 170, child: Card(clipBehavior: Clip.antiAlias, child: InkWell(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DeviceAlbumPage(paths: [path], title: path.name, grid: grid, hiddenIds: hiddenIds))),
+          child: Stack(fit: StackFit.expand, children: [
+            cover == null ? Container(color: cs.surfaceContainerHighest, child: Icon(Icons.folder_rounded, size: 48, color: cs.primary)) : Thumb(cover),
+            DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black.withValues(alpha: .84)]))),
+            Positioned(left: 12, right: 12, bottom: 11, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(path.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 2),
+              Text(path.assetCount.toString() + ' photos', style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w700)),
+            ])),
+          ]),
+        )));
+      },
+    );
+  }
+
+  Future<void> _showDeletedInfo() async {
+    await showDialog(context: context, builder: (_) => AlertDialog(
+      title: const Text('Recently Deleted'),
+      content: const Text('Android only exposes a system trash/recently-deleted folder to apps on some devices. This phone is not exposing one through the photo-library API, so Little Memories cannot safely show or restore those files.'),
+      actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+    ));
   }
 
   Widget _albumFeatureCard({required String title,required String subtitle,AssetEntity? asset,required VoidCallback onTap,bool favorite=false}) {
@@ -1381,7 +1427,7 @@ class _HomeState extends State<Home> {
             IconButton(tooltip:'Select multiple photos',onPressed:()=>setState(()=>selectionMode=true),icon:const Icon(Icons.checklist_rounded)),
             IconButton(tooltip: galleryNewestFirst ? 'Showing newest first' : 'Showing oldest first', onPressed: () => setState(() => galleryNewestFirst = !galleryNewestFirst), icon: Icon(galleryNewestFirst ? Icons.south_rounded : Icons.north_rounded)),
             IconButton(tooltip: galleryShowNames ? 'Hide names' : 'Show names', onPressed: () => setState(() => galleryShowNames = !galleryShowNames), icon: Icon(galleryShowNames ? Icons.text_fields : Icons.text_fields_outlined)),
-            PopupMenuButton<int>(tooltip: 'Grid size', initialValue: grid, onSelected: (v) => setState(() => grid = v), itemBuilder: (_) => [2,3,4,5,6].map((v) => PopupMenuItem(value: v, child: Text('$v columns'))).toList(), child: const Icon(Icons.grid_view_rounded)),
+            PopupMenuButton<int>(tooltip: 'Grid size', initialValue: grid, onSelected: (v) async { setState(() => grid = v); await _save(); }, itemBuilder: (_) => [2,3,4,5,6,7,8].map((v) => PopupMenuItem(value: v, child: Text('$v columns'))).toList(), child: const Icon(Icons.grid_view_rounded)),
           ])),
           SizedBox(height: 42, child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 12), scrollDirection: Axis.horizontal,
@@ -1465,6 +1511,70 @@ class _HomeState extends State<Home> {
   }
 }
 
+
+
+class DeviceAlbumPage extends StatefulWidget {
+  final List<AssetPathEntity> paths;
+  final String title;
+  final int grid;
+  final Set<String> hiddenIds;
+  const DeviceAlbumPage({super.key, required this.paths, required this.title, required this.grid, required this.hiddenIds});
+  @override State<DeviceAlbumPage> createState() => _DeviceAlbumPageState();
+}
+
+class _DeviceAlbumPageState extends State<DeviceAlbumPage> {
+  List<AssetEntity> assets = [];
+  bool loading = true;
+
+  @override void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final out = <AssetEntity>[];
+    final seen = <String>{};
+    for (final path in widget.paths) {
+      var page = 0;
+      while (true) {
+        final batch = await path.getAssetListPaged(page: page, size: 200);
+        if (batch.isEmpty) break;
+        for (final a in batch) {
+          if (seen.add(a.id)) out.add(a);
+        }
+        if (batch.length < 200) break;
+        page++;
+      }
+    }
+    out.sort((a,b) => b.createDateTime.compareTo(a.createDateTime));
+    if (mounted) setState(() { assets = out; loading = false; });
+  }
+
+  @override Widget build(BuildContext context) {
+    final visible = assets.where((a) => !widget.hiddenIds.contains(a.id)).toList();
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.title), actions: [
+        Padding(padding: const EdgeInsets.only(right: 16), child: Center(child: Text(visible.length.toString()))),
+      ]),
+      body: loading
+        ? const Center(child: CircularProgressIndicator())
+        : visible.isEmpty
+          ? const Center(child: Text('No photos in this folder.'))
+          : GridView.builder(
+              padding: const EdgeInsets.all(5),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: widget.grid.clamp(2, 8),
+                crossAxisSpacing: 4, mainAxisSpacing: 4,
+              ),
+              itemCount: visible.length,
+              itemBuilder: (_, i) => GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CinematicViewer(
+                  asset: visible[i], all: visible,
+                  onEdit: (_) async {}, onShare: (_) async {},
+                ))),
+                child: ClipRRect(borderRadius: BorderRadius.circular(6), child: Thumb(visible[i])),
+              ),
+            ),
+    );
+  }
+}
 
 class PcConnectPage extends StatefulWidget {
   final List<AssetEntity> photos;
@@ -1567,6 +1677,14 @@ class _MemoryPatternPainter extends CustomPainter {
       for(double x=0;x<size.width;x+=70) canvas.drawLine(Offset(x,0),Offset(x+25,size.height),p);
     } else if(style==5){
       for(double y=26;y<size.height;y+=56) canvas.drawLine(Offset(0,y),Offset(size.width,y),p);
+    } else if(style==6){
+      for(double x=0;x<size.width;x+=72) for(double y=0;y<size.height;y+=72) canvas.drawCircle(Offset(x+20,y+20),10,p);
+    } else if(style==7){
+      for(double x=20;x<size.width;x+=80) { canvas.drawCircle(Offset(x,42),20,p); canvas.drawLine(Offset(x-24,70),Offset(x+24,70),p); }
+    } else if(style==8){
+      for(double x=-size.height;x<size.width;x+=70) canvas.drawLine(Offset(x,0),Offset(x+size.height,size.height),p);
+    } else if(style==9){
+      for(double y=18;y<size.height;y+=42) canvas.drawLine(Offset(0,y),Offset(size.width,y),p);
     }
   }
   @override bool shouldRepaint(covariant _MemoryPatternPainter old) => old.color!=color || old.style!=style;
@@ -1961,7 +2079,7 @@ class SettingsPage extends StatelessWidget {
     const Text('Professional controls', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800)),
     const SizedBox(height: 14),    Card(child:ListTile(leading:const Icon(Icons.palette_outlined),title:const Text('Comic app theme'),subtitle:Text(comicThemes[themeIndex].name),onTap:()=>showModalBottomSheet(context:context,builder:(_)=>SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[const Text('Choose your comic style',style:TextStyle(fontSize:22,fontWeight:FontWeight.w900)),const SizedBox(height:12),...List.generate(comicThemes.length,(i)=>Card(child:RadioListTile<int>(value:i,groupValue:themeIndex,title:Text(comicThemes[i].name),secondary:CircleAvatar(backgroundColor:comicThemes[i].seed),onChanged:(v){if(v!=null){onTheme(v);Navigator.pop(context);}})))]))))),
     Card(child: SwitchListTile(value: dark, onChanged: onDark, title: const Text('Dark mode'), secondary: const Icon(Icons.dark_mode_outlined))),
-    Card(child: ListTile(title: const Text('Gallery grid size'), subtitle: Slider(value: grid.toDouble(), min: 2, max: 6, divisions: 4, label: grid.toString() + ' columns', onChanged: (v) => onGrid(v.round())), trailing: Text(grid.toString() + '×'))),
+    Card(child: ListTile(title: const Text('Gallery grid size'), subtitle: Slider(value: grid.clamp(2,8).toDouble(), min: 2, max: 8, divisions: 6, label: grid.toString() + ' columns', onChanged: (v) => onGrid(v.round())), trailing: Text(grid.toString() + '×'))),
     Card(child: ListTile(leading: const Icon(Icons.child_care_outlined), title: Text(childName), subtitle: Text(childBirthday.isEmpty ? 'Add birthday and milestones' : 'Birthday: $childBirthday'), onTap: onChildEdit)),
     Card(child: ListTile(leading: const Icon(Icons.desktop_windows_outlined), title: const Text('Connect to Windows PC'), subtitle: const Text('Pair on the same Wi-Fi and transfer photos from your phone to your PC.'), trailing: const Icon(Icons.qr_code_2), onTap: onPcConnect)),
     Card(child: ListTile(leading: const Icon(Icons.backup_outlined), title: const Text('Backup Center'), subtitle: Text(backupHistory.isEmpty ? 'No PC backups recorded yet.' : 'Last backup: ${backupHistory.first.substring(0, 16).replaceAll('T', ' ')}'), trailing: const Icon(Icons.chevron_right), onTap: onBackup)),
