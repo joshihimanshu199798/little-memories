@@ -17,13 +17,15 @@ void main() => runApp(const LittleMemoriesApp());
 class Timeline {
   String id, title, description;
   List<String> assets;
-  Timeline({required this.id, required this.title, this.description = '', List<String>? assets})
+  String? coverId;
+  Timeline({required this.id, required this.title, this.description = '', List<String>? assets, this.coverId})
       : assets = assets ?? [];
-  Map<String, dynamic> toJson() => {'id': id, 'title': title, 'description': description, 'assets': assets};
+  Map<String, dynamic> toJson() => {'id': id, 'title': title, 'description': description, 'assets': assets, 'coverId': coverId};
   factory Timeline.fromJson(Map<String, dynamic> j) => Timeline(
     id: j['id'] as String, title: j['title'] as String,
     description: (j['description'] ?? '') as String,
     assets: List<String>.from(j['assets'] ?? const []),
+    coverId: (j['coverId'] ?? '') as String == '' ? null : j['coverId'] as String,
   );
 }
 
@@ -783,7 +785,13 @@ class _HomeState extends State<Home> {
           ListTile(
             title: Text(t.title, style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(t.assets.length.toString() + ' photos' + (t.description.isEmpty ? '' : ' • ' + t.description)),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TimelinePage(t: t, find: _find, grid: grid, onEdit: _openPhotoEditor, onShare: (a) => _share([a], t.title)))),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TimelinePage(
+              t: t, find: _find, grid: grid, onEdit: _openPhotoEditor,
+              onShare: (a) => _share([a], t.title),
+              onAddPhotos: () => _addToTimeline(t),
+              onEditTimeline: () => _createTimeline(existing: t),
+              onSave: _save,
+            ))),
             trailing: PopupMenuButton<String>(
               onSelected: (v) {
                 if (v == 'add') _addToTimeline(t);
@@ -988,32 +996,83 @@ class Thumb extends StatelessWidget {
   );
 }
 
-class TimelinePage extends StatelessWidget {
+class TimelinePage extends StatefulWidget {
   final Timeline t;
   final AssetEntity? Function(String) find;
   final int grid;
   final Future<void> Function(AssetEntity) onEdit;
   final Future<void> Function(AssetEntity) onShare;
-  const TimelinePage({super.key, required this.t, required this.find, required this.grid, required this.onEdit, required this.onShare});
-  @override Widget build(BuildContext context) {
-    final imgs = t.assets.map(find).whereType<AssetEntity>().toList();
-    return Scaffold(
-      appBar: AppBar(title: Text(t.title), actions: [
-        IconButton(onPressed: () => showDialog(context: context, builder: (_) => const AlertDialog(
-          title: Text('Collaborate with family'),
-          content: Text('Cloud collaboration is the next stage: family accounts, shared timelines, reactions, comments and real-time sync. This local version never pretends that feature is active.'),
-        )), icon: const Icon(Icons.people_outline)),
-      ]),
-      body: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (t.description.isNotEmpty) Padding(padding: const EdgeInsets.all(16), child: Text(t.description)),
+  final Future<void> Function() onAddPhotos;
+  final Future<void> Function() onEditTimeline;
+  final Future<void> Function() onSave;
+  const TimelinePage({super.key, required this.t, required this.find, required this.grid, required this.onEdit, required this.onShare, required this.onAddPhotos, required this.onEditTimeline, required this.onSave});
+  @override State<TimelinePage> createState() => _TimelinePageState();
+}
+class _TimelinePageState extends State<TimelinePage> {
+  List<AssetEntity> get imgs {
+    final list = widget.t.assets.map(widget.find).whereType<AssetEntity>().toList();
+    list.sort((a, b) => a.createDateTime.compareTo(b.createDateTime));
+    return list;
+  }
+  String _date(DateTime d) => '${_month(d.month)} ${d.day}, ${d.year}';
+  String _month(int m) => const ['January','February','March','April','May','June','July','August','September','October','November','December'][m - 1];
+
+  Future<void> _changeCover() async {
+    final list = imgs;
+    if (list.isEmpty) return;
+    final picked = await showModalBottomSheet<AssetEntity>(
+      context: context, showDragHandle: true,
+      builder: (_) => SafeArea(child: SizedBox(height: 330, child: Column(children: [
+        const ListTile(title: Text('Choose cover photo', style: TextStyle(fontWeight: FontWeight.w800))),
         Expanded(child: GridView.builder(
-          padding: const EdgeInsets.all(8),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: grid, crossAxisSpacing: 5, mainAxisSpacing: 5),
-          itemCount: imgs.length,
-          itemBuilder: (_, i) => GestureDetector(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => Viewer(asset: imgs[i], all: imgs, onEdit: onEdit, onShare: onShare))),
-            child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Thumb(imgs[i])),
-          ),
+          padding: const EdgeInsets.all(12),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 6, mainAxisSpacing: 6),
+          itemCount: list.length,
+          itemBuilder: (_, i) => GestureDetector(onTap: () => Navigator.pop(context, list[i]), child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Thumb(list[i]))),
+        )),
+      ]))),
+    );
+    if (picked != null) { setState(() => widget.t.coverId = picked.id); await widget.onSave(); }
+  }
+
+  @override Widget build(BuildContext context) {
+    final list = imgs;
+    final cover = widget.t.coverId == null ? (list.isEmpty ? null : list.first) : widget.find(widget.t.coverId!);
+    DateTime? first, last;
+    if (list.isNotEmpty) { first = list.first.createDateTime; last = list.last.createDateTime; }
+    final range = first == null ? 'No memories yet' : first.year == last!.year && first.month == last!.month && first.day == last.day ? _date(first) : '${_date(first)} – ${_date(last)}';
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.t.title), actions: [
+        IconButton(onPressed: widget.onEditTimeline, tooltip: 'Edit timeline', icon: const Icon(Icons.edit_outlined)),
+        IconButton(onPressed: widget.onAddPhotos, tooltip: 'Add photos', icon: const Icon(Icons.add_photo_alternate_outlined)),
+      ]),
+      body: CustomScrollView(slivers: [
+        SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(16,12,16,8), child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: SizedBox(height: 245, child: Stack(fit: StackFit.expand, children: [
+            if (cover != null) Thumb(cover) else Container(color: Theme.of(context).colorScheme.surfaceContainerHighest, child: const Icon(Icons.auto_stories_outlined, size: 72)),
+            Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black])))),
+            Positioned(left: 18, right: 18, bottom: 18, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(widget.t.title, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 5),
+              Text('${list.length} memories • $range', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            ])),
+            Positioned(top: 12, right: 12, child: FilledButton.tonalIcon(onPressed: _changeCover, icon: const Icon(Icons.image_outlined), label: const Text('Cover'))),
+          ])),
+        ))),
+        if (widget.t.description.isNotEmpty) SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(18,4,18,12), child: Text(widget.t.description, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 15)))),
+        SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(16,4,16,8), child: Row(children: [
+          Expanded(child: FilledButton.icon(onPressed: widget.onAddPhotos, icon: const Icon(Icons.add_photo_alternate_outlined), label: const Text('Manage photos'))),
+          const SizedBox(width: 10),
+          Expanded(child: OutlinedButton.icon(onPressed: list.isEmpty ? null : () => widget.onShare(list.first), icon: const Icon(Icons.share_outlined), label: const Text('Share'))),
+        ]))),
+        if (list.isEmpty) const SliverFillRemaining(hasScrollBody: false, child: Center(child: Text('Add memories to this timeline to get started.')))
+        else SliverPadding(padding: const EdgeInsets.all(8), sliver: SliverGrid(
+          delegate: SliverChildBuilderDelegate((_, i) => GestureDetector(
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => Viewer(asset: list[i], all: list, onEdit: widget.onEdit, onShare: widget.onShare))),
+            child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Thumb(list[i])),
+          ), childCount: list.length),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: widget.grid, crossAxisSpacing: 5, mainAxisSpacing: 5),
         )),
       ]),
     );
