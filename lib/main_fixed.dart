@@ -51,6 +51,9 @@ class _HomeState extends State<Home> {
   List<Timeline> timelines = [];
   Set<String> favorites = {};
   Map<String, String> names = {}, captions = {};
+  String childName = 'My Little Star', childBirthday = '';
+  String searchQuery = '';
+  final TextEditingController searchController = TextEditingController();
 
   @override void initState() { super.initState(); _load(); }
 
@@ -68,6 +71,8 @@ class _HomeState extends State<Home> {
     final n = p.getString('names'); if (n != null) names = Map<String, String>.from(jsonDecode(n));
     final c = p.getString('captions'); if (c != null) captions = Map<String, String>.from(jsonDecode(c));
     grid = p.getInt('grid') ?? 3;
+    childName = p.getString('childName') ?? 'My Little Star';
+    childBirthday = p.getString('childBirthday') ?? '';
     setState(() => loading = false);
   }
 
@@ -108,6 +113,8 @@ class _HomeState extends State<Home> {
     await p.setString('names', jsonEncode(names));
     await p.setString('captions', jsonEncode(captions));
     await p.setInt('grid', grid);
+    await p.setString('childName', childName);
+    await p.setString('childBirthday', childBirthday);
   }
 
   AssetEntity? _find(String id) {
@@ -138,6 +145,25 @@ class _HomeState extends State<Home> {
     final files = <XFile>[];
     for (final a in list) { final f = await a.file; if (f != null) files.add(XFile(f.path)); }
     if (files.isNotEmpty) await Share.shareXFiles(files, text: text);
+  }
+
+  Future<void> _editChildProfile() async {
+    final n = TextEditingController(text: childName);
+    final b = TextEditingController(text: childBirthday);
+    await showDialog(context: context, builder: (_) => AlertDialog(
+      title: const Text('Child profile'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: n, decoration: const InputDecoration(labelText: 'Child name')),
+        TextField(controller: b, decoration: const InputDecoration(labelText: 'Birthday (DD/MM/YYYY)')),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(onPressed: () {
+          setState(() { childName = n.text.trim().isEmpty ? 'My Little Star' : n.text.trim(); childBirthday = b.text.trim(); });
+          _save(); Navigator.pop(context);
+        }, child: const Text('Save')),
+      ],
+    ));
   }
 
   Future<void> _createTimeline({Timeline? existing}) async {
@@ -203,8 +229,11 @@ class _HomeState extends State<Home> {
     MaterialPageRoute(builder: (_) => Viewer(asset: a, all: list, onEdit: _editPhoto, onShare: (x) => _share([x], 'Shared from Little Memories'))));
 
   Widget _gallery({bool onlyFavorites = false}) {
-    final source = onlyFavorites ? photos.where((a) => favorites.contains(a.id)).toList() : photos;
-    if (source.isEmpty) return Center(child: Text(onlyFavorites ? 'No favorite memories yet.' : 'No photos found on this device.'));
+    final q = searchQuery.trim().toLowerCase();
+    final source = (onlyFavorites ? photos.where((a) => favorites.contains(a.id)) : photos)
+      .where((a) => q.isEmpty || (names[a.id] ?? a.title ?? 'Photo').toLowerCase().contains(q) || (captions[a.id] ?? '').toLowerCase().contains(q))
+      .toList();
+    if (source.isEmpty) return Center(child: Text(q.isEmpty ? (onlyFavorites ? 'No favorite memories yet.' : 'No photos found on this device.') : 'No memories match "$searchQuery".'));
     return RefreshIndicator(
       onRefresh: _refreshPhotos,
       child: GridView.builder(
@@ -266,6 +295,8 @@ class _HomeState extends State<Home> {
       },
     );
 
+  @override void dispose() { searchController.dispose(); super.dispose(); }
+
   @override Widget build(BuildContext context) {
     if (loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     if (permissionDenied) {
@@ -287,7 +318,24 @@ class _HomeState extends State<Home> {
         )),
       );
     }
-    final body = tab == 0 ? _gallery() : tab == 1 ? _timelines() : tab == 2 ? _gallery(onlyFavorites: true) : SettingsPage(
+    final galleryBody = Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 4), child: Row(children: [
+        Expanded(child: Text('Hello, $childName ❤️', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800))),
+        IconButton(onPressed: _editChildProfile, icon: const Icon(Icons.child_care_outlined)),
+      ])),
+      Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 8), child: TextField(
+        controller: searchController,
+        onChanged: (v) => setState(() => searchQuery = v),
+        decoration: InputDecoration(
+          hintText: 'Search photos, captions & memories',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: searchQuery.isEmpty ? null : IconButton(onPressed: () { searchController.clear(); setState(() => searchQuery = ''); }, icon: const Icon(Icons.clear)),
+          filled: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+        ),
+      )),
+      Expanded(child: _gallery()),
+    ]);
+    final body = tab == 0 ? galleryBody : tab == 1 ? _timelines() : tab == 2 ? _gallery(onlyFavorites: true) : SettingsPage(
       grid: grid, dark: Theme.of(context).brightness == Brightness.dark,
       onGrid: (v) { setState(() => grid = v); _save(); },
       onDark: widget.onDark,
@@ -392,6 +440,7 @@ class SettingsPage extends StatelessWidget {
     const SizedBox(height: 14),
     Card(child: SwitchListTile(value: dark, onChanged: onDark, title: const Text('Dark mode'), secondary: const Icon(Icons.dark_mode_outlined))),
     Card(child: ListTile(title: const Text('Gallery grid size'), subtitle: Slider(value: grid.toDouble(), min: 2, max: 6, divisions: 4, label: grid.toString() + ' columns', onChanged: (v) => onGrid(v.round())), trailing: Text(grid.toString() + '×'))),
+    Card(child: ListTile(leading: const Icon(Icons.child_care_outlined), title: Text(childName), subtitle: Text(childBirthday.isEmpty ? 'Add birthday and milestones' : 'Birthday: $childBirthday'), onTap: _editChildProfile)),
     Card(child: ListTile(leading: const Icon(Icons.people_outline), title: const Text('Family collaboration'), subtitle: const Text('Private accounts, shared timelines, reactions and comments are planned for the cloud edition.'))),
     Card(child: ListTile(leading: const Icon(Icons.share_outlined), title: const Text('Share gallery'), onTap: onShare)),
     const Card(child: ListTile(leading: Icon(Icons.lock_outline), title: Text('Privacy first'), subtitle: Text('Photos stay in your device library. The app stores timeline metadata locally.'))),
