@@ -154,8 +154,6 @@ class _HomeState extends State<Home> {
         builder: (_) => ImageEditor(
           image: bytes,
           outputFormat: OutputFormat.jpeg,
-          appBarColor: Theme.of(context).colorScheme.surface,
-          bottomBarColor: Theme.of(context).colorScheme.surface,
         ),
       ),
     );
@@ -167,7 +165,7 @@ class _HomeState extends State<Home> {
       final saved = await PhotoManager.editor.saveImage(
         edited,
         filename: filename.toLowerCase().endsWith('.jpg') ? filename : filename + '.jpg',
-        title: 'Edited ' + (names[a.id].isEmpty ? 'memory' : names[a.id]),
+        title: 'Edited ' + ((names[a.id] ?? '').isEmpty ? 'memory' : (names[a.id] ?? 'memory')),
         relativePath: 'Pictures/Little Memories',
       );
       if (saved != null) {
@@ -317,7 +315,7 @@ class _HomeState extends State<Home> {
           ListTile(
             title: Text(t.title, style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(t.assets.length.toString() + ' photos' + (t.description.isEmpty ? '' : ' • ' + t.description)),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TimelinePage(t: t, find: _find, grid: grid, onEdit: _editPhoto, onShare: (a) => _share([a], t.title)))),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TimelinePage(t: t, find: _find, grid: grid, onEdit: _openPhotoEditor, onShare: (a) => _share([a], t.title)))),
             trailing: PopupMenuButton<String>(
               onSelected: (v) {
                 if (v == 'add') _addToTimeline(t);
@@ -382,6 +380,9 @@ class _HomeState extends State<Home> {
       onGrid: (v) { setState(() => grid = v); _save(); },
       onDark: widget.onDark,
       onShare: () => _share(photos, 'My Little Memories'),
+      childName: childName,
+      childBirthday: childBirthday,
+      onChildEdit: _editChildProfile,
     );
     return Scaffold(
       appBar: AppBar(
@@ -475,14 +476,14 @@ class _ViewerState extends State<Viewer> {
 }
 
 class SettingsPage extends StatelessWidget {
-  final int grid; final bool dark; final ValueChanged<int> onGrid; final ValueChanged<bool> onDark; final VoidCallback onShare;
-  const SettingsPage({super.key, required this.grid, required this.dark, required this.onGrid, required this.onDark, required this.onShare});
+  final int grid; final bool dark; final ValueChanged<int> onGrid; final ValueChanged<bool> onDark; final VoidCallback onShare; final String childName; final String childBirthday; final VoidCallback onChildEdit;
+  const SettingsPage({super.key, required this.grid, required this.dark, required this.onGrid, required this.onDark, required this.onShare, required this.childName, required this.childBirthday, required this.onChildEdit});
   @override Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(16), children: [
     const Text('Professional controls', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800)),
     const SizedBox(height: 14),
     Card(child: SwitchListTile(value: dark, onChanged: onDark, title: const Text('Dark mode'), secondary: const Icon(Icons.dark_mode_outlined))),
     Card(child: ListTile(title: const Text('Gallery grid size'), subtitle: Slider(value: grid.toDouble(), min: 2, max: 6, divisions: 4, label: grid.toString() + ' columns', onChanged: (v) => onGrid(v.round())), trailing: Text(grid.toString() + '×'))),
-    Card(child: ListTile(leading: const Icon(Icons.child_care_outlined), title: Text(childName), subtitle: Text(childBirthday.isEmpty ? 'Add birthday and milestones' : 'Birthday: $childBirthday'), onTap: _editChildProfile)),
+    Card(child: ListTile(leading: const Icon(Icons.child_care_outlined), title: Text(childName), subtitle: Text(childBirthday.isEmpty ? 'Add birthday and milestones' : 'Birthday: $childBirthday'), onTap: onChildEdit)),
     Card(child: ListTile(leading: const Icon(Icons.people_outline), title: const Text('Family collaboration'), subtitle: const Text('Private accounts, shared timelines, reactions and comments are planned for the cloud edition.'))),
     Card(child: ListTile(leading: const Icon(Icons.share_outlined), title: const Text('Share gallery'), onTap: onShare)),
     const Card(child: ListTile(leading: Icon(Icons.lock_outline), title: Text('Privacy first'), subtitle: Text('Photos stay in your device library. The app stores timeline metadata locally.'))),
