@@ -22,6 +22,9 @@ jobs:
       - name: Generate Android project
         run: flutter create --platforms=android --project-name=little_memories .
 
+      - name: Remove generated placeholder test
+        run: rm -f test/widget_test.dart
+
       - name: Configure Android photo permissions
         run: |
           python3 - <<'PY'
