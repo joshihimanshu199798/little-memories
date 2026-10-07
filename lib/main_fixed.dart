@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:image_editor_plus/image_editor_plus.dart';
 
 void main() => runApp(const LittleMemoriesApp());
 
@@ -122,23 +123,64 @@ class _HomeState extends State<Home> {
     return null;
   }
 
-  Future<void> _editPhoto(AssetEntity a) async {
+  Future<void> _editMemory(AssetEntity a) async {
     final n = TextEditingController(text: names[a.id] ?? a.title ?? 'Photo');
-    final c = TextEditingController(text: captions[a.id] ?? '');
+    final cap = TextEditingController(text: captions[a.id] ?? '');
     await showDialog(context: context, builder: (_) => AlertDialog(
-      title: const Text('Edit memory'),
+      title: const Text('Memory details'),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         TextField(controller: n, decoration: const InputDecoration(labelText: 'Photo name')),
-        TextField(controller: c, decoration: const InputDecoration(labelText: 'Caption / memory note')),
+        const SizedBox(height: 8),
+        TextField(controller: cap, maxLines: 3, decoration: const InputDecoration(labelText: 'Caption / memory note')),
       ]),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         FilledButton(onPressed: () {
-          setState(() { names[a.id] = n.text.trim(); captions[a.id] = c.text.trim(); });
+          setState(() { names[a.id] = n.text.trim(); captions[a.id] = cap.text.trim(); });
           _save(); Navigator.pop(context);
         }, child: const Text('Save')),
       ],
     ));
+  }
+
+  Future<void> _openPhotoEditor(AssetEntity a) async {
+    final file = await a.file;
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    final edited = await Navigator.push<Uint8List>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ImageEditor(
+          image: bytes,
+          outputFormat: OutputFormat.jpeg,
+          appBarColor: Theme.of(context).colorScheme.surface,
+          bottomBarColor: Theme.of(context).colorScheme.surface,
+        ),
+      ),
+    );
+    if (edited == null || edited.isEmpty) return;
+    try {
+      final stamp = DateTime.now().millisecondsSinceEpoch;
+      final base = (a.title ?? 'memory').replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+      final filename = 'LittleMemories_' + stamp.toString() + '_' + base;
+      final saved = await PhotoManager.editor.saveImage(
+        edited,
+        filename: filename.toLowerCase().endsWith('.jpg') ? filename : filename + '.jpg',
+        title: 'Edited ' + (names[a.id].isEmpty ? 'memory' : names[a.id]),
+        relativePath: 'Pictures/Little Memories',
+      );
+      if (saved != null) {
+        await _refreshPhotos();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Edited photo saved as a new photo. Original is preserved.')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not save edited photo: $e')));
+    }
   }
 
   Future<void> _share(List<AssetEntity> list, String text) async {
@@ -226,7 +268,7 @@ class _HomeState extends State<Home> {
   }
 
   void _openPhoto(AssetEntity a, List<AssetEntity> list) => Navigator.push(context,
-    MaterialPageRoute(builder: (_) => Viewer(asset: a, all: list, onEdit: _editPhoto, onShare: (x) => _share([x], 'Shared from Little Memories'))));
+    MaterialPageRoute(builder: (_) => Viewer(asset: a, all: list, onEdit: _openPhotoEditor, onShare: (x) => _share([x], 'Shared from Little Memories'))));
 
   Widget _gallery({bool onlyFavorites = false}) {
     final q = searchQuery.trim().toLowerCase();
@@ -244,7 +286,7 @@ class _HomeState extends State<Home> {
           final a = source[i], fav = favorites.contains(a.id);
           return GestureDetector(
             onTap: () => _openPhoto(a, source),
-            onLongPress: () => _editPhoto(a),
+            onLongPress: () => _editMemory(a),
             child: Stack(fit: StackFit.expand, children: [
               ClipRRect(borderRadius: BorderRadius.circular(9), child: Thumb(a)),
               if (fav) const Positioned(right: 6, top: 6, child: Icon(Icons.favorite, color: Colors.white, shadows: [Shadow(blurRadius: 5)])),
@@ -421,7 +463,7 @@ class _ViewerState extends State<Viewer> {
   @override Widget build(BuildContext context) => Scaffold(
     backgroundColor: Colors.black,
     appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white, title: Text((index + 1).toString() + '/' + widget.all.length.toString()), actions: [
-      IconButton(onPressed: () => widget.onEdit(widget.all[index]), icon: const Icon(Icons.edit_outlined)),
+      IconButton(onPressed: () => widget.onEdit(widget.all[index]), tooltip: 'Edit photo', icon: const Icon(Icons.tune_outlined)),
       IconButton(onPressed: () => widget.onShare(widget.all[index]), icon: const Icon(Icons.share_outlined)),
     ]),
     body: PageView.builder(controller: controller, itemCount: widget.all.length, onPageChanged: (i) => setState(() => index = i),
