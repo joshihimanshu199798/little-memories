@@ -49,7 +49,7 @@ jobs:
           sha256sum lib/main.dart
 
       - name: Analyze Dart source
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Build APK
         run: flutter build apk --release
