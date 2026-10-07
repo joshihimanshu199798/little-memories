@@ -252,7 +252,7 @@ class _AppState extends State<LittleMemoriesApp> {
   ThemeData _buildTheme(ComicTheme t,bool isDark){
     final scheme=ColorScheme.fromSeed(seedColor:t.seed,brightness:isDark?Brightness.dark:Brightness.light);
     final radius=t.radius;
-    final cardShape=RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==3 ? .22 : .16),width:t.style==0?2:t.style==5?.8:1.4));
+    final cardShape=RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==3 ? .22 : .16),width:t.style==0?2:t.style==5 ? .8 : 1.4));
     final baseText=ThemeData(useMaterial3:true).textTheme;
     final text=baseText.apply(fontFamily:t.fontFamily,fontFamilyFallback:const ['sans-serif','serif'],bodyColor:scheme.onSurface,displayColor:scheme.onSurface);
     final buttonShape=RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.buttonRadius),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==0 ? .75 : .25),width:t.style==0?1.6:1));
@@ -341,7 +341,8 @@ class _HomeState extends State<Home> {
   Map<String, String> names = {}, captions = {};
   List<String> backupHistory = [];
   bool selectionMode = false;
-  Set<String> selectedIds = {};  String childName = 'My Little Star', childBirthday = '';  String searchQuery = '';\n  Map<String, List<String>> memoryAlbums = {};
+  Set<String> selectedIds = {};  String childName = 'My Little Star', childBirthday = '';  String searchQuery = '';
+  Map<String, List<String>> memoryAlbums = {};
   bool showAllPhotos = false;
   Set<String> hiddenIds = {};
   int galleryFilter = 0;
@@ -898,7 +899,8 @@ class _HomeState extends State<Home> {
           return GestureDetector(onTap: () => _openPhoto(e.value.first, e.value), child: SizedBox(width: 150,
             child: ClipRRect(borderRadius: BorderRadius.circular(16), child: Stack(fit: StackFit.expand, children: [
               Thumb(e.value.first),
-              Positioned(left: 10, right: 10, bottom: 10, child: Text('$label\n${e.value.length} memories', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, shadows: [Shadow(blurRadius: 6)]))),
+              Positioned(left: 10, right: 10, bottom: 10, child: Text('$label
+${e.value.length} memories', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, shadows: [Shadow(blurRadius: 6)]))),
             ])),));
         },
       )),
@@ -1109,7 +1111,10 @@ class _HomeState extends State<Home> {
     ]);
   }
 
-  double _themeRadius()=>comicThemes[widget.themeIndex.clamp(0,comicThemes.length-1)].radius;\n  Widget _themedBody(Widget child)=>ThemeBackdrop(style:widget.themeIndex,child:child);\n\n  Widget _gallery({bool onlyFavorites = false}) {
+  double _themeRadius()=>comicThemes[widget.themeIndex.clamp(0,comicThemes.length-1)].radius;
+  Widget _themedBody(Widget child)=>ThemeBackdrop(style:widget.themeIndex,child:child);
+
+  Widget _gallery({bool onlyFavorites = false}) {
     final q = searchQuery.trim().toLowerCase();
     final storyIds = timelines.expand((t) => t.assets).toSet();
     var source = photos.where((a) => !hiddenIds.contains(a.id)).toList();
@@ -1481,7 +1486,12 @@ class _PcConnectPageState extends State<PcConnectPage> {
         const Card(child: Padding(padding: EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('What you can do', style: TextStyle(fontWeight: FontWeight.w800)),
           SizedBox(height: 8),
-          Text('• Preview your phone photos on Windows\\n• Select individual memories\\n• Download selected photos\\n• Download an entire timeline\\n• No cloud upload\\n• Connection is protected by a temporary QR token'),
+          Text('• Preview your phone photos on Windows\
+• Select individual memories\
+• Download selected photos\
+• Download an entire timeline\
+• No cloud upload\
+• Connection is protected by a temporary QR token'),
         ]))),
       ]),
     );
@@ -1895,8 +1905,13 @@ class _UltimateMemoryCenterState extends State<UltimateMemoryCenter> {
   Future<void> _load() async { final p=await SharedPreferences.getInstance(); profiles=p.getStringList('familyProfiles')??[]; tags=(p.getStringList('memoryTags')??[]).toSet(); if(mounted)setState(()=>loading=false); }
   Future<void> _save() async { final p=await SharedPreferences.getInstance(); await p.setStringList('familyProfiles',profiles); await p.setStringList('memoryTags',tags.toList()); }
   List<MapEntry<String,List<AssetEntity>>> _albums(){final g=<String,List<AssetEntity>>{}; for(final a in widget.photos){final d=a.createDateTime; final k=d.year.toString()+'-'+d.month.toString().padLeft(2,'0'); g.putIfAbsent(k,()=>[]).add(a);} final e=g.entries.toList()..sort((a,b)=>b.key.compareTo(a.key)); return e;}
-  Future<void> _milestones() async {final c=widget.photos.length,s=widget.timelines.length,f=widget.favorites.length; final m=<String>[]; for(final n in [10,25,50,100,250,500,1000,2500])if(c>=n)m.add('📸 '+n.toString()+' memories'); for(final n in [1,5,10,25])if(s>=n)m.add('📖 '+n.toString()+' stories'); if(f>=25)m.add('❤️ 25 favorites'); if(widget.hiddenIds.isNotEmpty)m.add('🔐 Private memories enabled'); await showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('Milestones'),content:Text(m.isEmpty?'Your first milestone is waiting ✨':m.join('\n')),actions:[FilledButton(onPressed:()=>Navigator.pop(context),child:const Text('Done'))]));}
-  Future<void> _storage() async {int total=0,count=0; for(final a in widget.photos){try{final f=await a.file;if(f!=null&&await f.exists()){total+=await f.length();count++;}}catch(_){}} final mb=total/(1024*1024); final text=mb>=1024?(mb/1024).toStringAsFixed(2)+' GB':mb.toStringAsFixed(1)+' MB'; if(!mounted)return; await showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('Storage dashboard'),content:Text('Measured '+count.toString()+' files\n\n💾 '+text+'\n\nUse Duplicate Scan and PC Backup before deleting anything.'),actions:[FilledButton(onPressed:()=>Navigator.pop(context),child:const Text('Done'))]));}
+  Future<void> _milestones() async {final c=widget.photos.length,s=widget.timelines.length,f=widget.favorites.length; final m=<String>[]; for(final n in [10,25,50,100,250,500,1000,2500])if(c>=n)m.add('📸 '+n.toString()+' memories'); for(final n in [1,5,10,25])if(s>=n)m.add('📖 '+n.toString()+' stories'); if(f>=25)m.add('❤️ 25 favorites'); if(widget.hiddenIds.isNotEmpty)m.add('🔐 Private memories enabled'); await showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('Milestones'),content:Text(m.isEmpty?'Your first milestone is waiting ✨':m.join('
+')),actions:[FilledButton(onPressed:()=>Navigator.pop(context),child:const Text('Done'))]));}
+  Future<void> _storage() async {int total=0,count=0; for(final a in widget.photos){try{final f=await a.file;if(f!=null&&await f.exists()){total+=await f.length();count++;}}catch(_){}} final mb=total/(1024*1024); final text=mb>=1024?(mb/1024).toStringAsFixed(2)+' GB':mb.toStringAsFixed(1)+' MB'; if(!mounted)return; await showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('Storage dashboard'),content:Text('Measured '+count.toString()+' files
+
+💾 '+text+'
+
+Use Duplicate Scan and PC Backup before deleting anything.'),actions:[FilledButton(onPressed:()=>Navigator.pop(context),child:const Text('Done'))]));}
   Future<void> _profiles() async {final c=TextEditingController(); await showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('Family profiles'),content:Column(mainAxisSize:MainAxisSize.min,children:[if(profiles.isNotEmpty) ...profiles.map((x)=>ListTile(title:Text(x),trailing:IconButton(icon:const Icon(Icons.delete_outline),onPressed:()async{setState(()=>profiles.remove(x));await _save();Navigator.pop(context);_profiles();}))),TextField(controller:c,decoration:const InputDecoration(labelText:'Add family member'))]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancel')),FilledButton(onPressed:()async{if(c.text.trim().isNotEmpty){setState(()=>profiles.add(c.text.trim()));await _save();}Navigator.pop(context);},child:const Text('Save'))]));}
   Future<void> _tags() async {final c=TextEditingController(); await showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('Memory tags'),content:Column(mainAxisSize:MainAxisSize.min,children:[Wrap(spacing:6,children:tags.map((x)=>Chip(label:Text('#'+x),onDeleted:()async{setState(()=>tags.remove(x));await _save();Navigator.pop(context);_tags();})).toList()),TextField(controller:c,decoration:const InputDecoration(labelText:'New tag'))]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancel')),FilledButton(onPressed:()async{final v=c.text.trim().replaceAll('#','');if(v.isNotEmpty)setState(()=>tags.add(v));await _save();Navigator.pop(context);},child:const Text('Add'))]));}
   Future<void> _export() async {final data=jsonEncode({'app':'Little Memories','exportedAt':DateTime.now().toIso8601String(),'photos':widget.photos.length,'favorites':widget.favorites.length,'stories':widget.timelines.length,'hidden':widget.hiddenIds.length,'profiles':profiles,'tags':tags.toList(),'albums':_albums().map((e)=>{'month':e.key,'count':e.value.length}).toList()}); await Share.share(data,subject:'Little Memories catalog');}
