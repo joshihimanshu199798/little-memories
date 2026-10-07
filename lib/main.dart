@@ -707,7 +707,7 @@ class _HomeState extends State<Home> {
           Text('Your story starts here', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900)),
           SizedBox(height: 5), Text('Add photos to begin your memory collection.'),
         ])),
-    );
+    ));
     final hero = photos.first;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
@@ -723,7 +723,7 @@ class _HomeState extends State<Home> {
             Text(_monthName(hero.createDateTime.month) + ' ' + hero.createDateTime.day.toString() + ', ' + hero.createDateTime.year.toString() + ' • Tap to open', style: TextStyle(color: Colors.white.withOpacity(.82), fontSize: 12)),
           ])),
           Positioned(top: 14, right: 14, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.black.withOpacity(.35), borderRadius: BorderRadius.circular(20)),
-            child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.photo, color: Colors.white, size: 15), SizedBox(width: 5), Text('Latest', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700))])),
+            child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.photo, color: Colors.white, size: 15), SizedBox(width: 5), Text('Latest', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)))))
         ])),
       )),
     );
@@ -757,7 +757,7 @@ class _HomeState extends State<Home> {
             CircleAvatar(child: Icon(Icons.add_rounded)), SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Create your first story', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)), SizedBox(height: 3), Text('Turn your favorite moments into a collection.')])),
             Icon(Icons.chevron_right_rounded),
-          ])))),
+          ]))))),
       else
         ...timelines.take(3).map((t) {
           final imgs = t.assets.map(_find).whereType<AssetEntity>().take(3).toList();
@@ -773,7 +773,7 @@ class _HomeState extends State<Home> {
                 Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
                 const SizedBox(height: 4), Text(t.assets.length.toString() + ' memories' + (t.description.isEmpty ? '' : ' • ' + t.description), maxLines: 2, overflow: TextOverflow.ellipsis),
               ])), const Icon(Icons.chevron_right_rounded),
-            ]))));
+            ])))));
         }),
     ]));
   }
@@ -918,7 +918,7 @@ class _HomeState extends State<Home> {
           const Text('Allow access to your photos', textAlign: TextAlign.center, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
           const SizedBox(height: 10), const Text('Little Memories does not upload your photos. It needs photo-library permission so your existing phone gallery can appear here.', textAlign: TextAlign.center),
           const SizedBox(height: 22), FilledButton.icon(onPressed: _requestPhotos, icon: const Icon(Icons.photo_library), label: const Text('Allow photos')),
-        ])));
+        ]))));
     }
     final galleryBody = showAllPhotos ? Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 4), child: Row(children: [
@@ -1262,7 +1262,7 @@ class _ViewerState extends State<Viewer> {
             Text(_dateLabel(current.createDateTime),style:TextStyle(color:Colors.white.withOpacity(.7),fontSize:12)),
             if(caption?.trim().isNotEmpty==true)...[const SizedBox(height:8),Text(caption!,maxLines:3,overflow:TextOverflow.ellipsis,style:const TextStyle(color:Colors.white,fontSize:14))],
             const SizedBox(height:5),Center(child:Text('Tap to hide controls • Swipe for next memory',style:TextStyle(color:Colors.white54,fontSize:10))),
-          ]))),
+          ])))),
       ] else Positioned(bottom:18,left:0,right:0,child:Center(child:Container(padding:const EdgeInsets.symmetric(horizontal:12,vertical:7),decoration:BoxDecoration(color:Colors.black45,borderRadius:BorderRadius.circular(20)),child:Text((index+1).toString()+'/'+widget.all.length.toString(),style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w700))))),
     ])));
   }
