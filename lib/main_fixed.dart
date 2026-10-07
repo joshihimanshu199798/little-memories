@@ -47,7 +47,7 @@ class PcConnectService {
     _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, 0, poweredByHeader: null);
     final ip = await _findLocalIp();
     if (ip == null) { await stop(); throw StateError('Could not find a Wi-Fi network address.'); }
-    url = 'http://\${ip}:\${_server!.port}/?token=\${token}';
+    url = 'http://${ip}:${_server!.port}/?token=${token}';
   }
 
   Future<String?> _findLocalIp() async {
@@ -60,7 +60,7 @@ class PcConnectService {
     }
     if (candidates.isEmpty) return null;
     for (final ip in candidates) {
-      if (ip.startsWith('192.168.') || ip.startsWith('10.') || RegExp(r'^172\\.(1[6-9]|2[0-9]|3[0-1])\\.').hasMatch(ip)) return ip;
+      if (ip.startsWith('192.168.') || ip.startsWith('10.') || RegExp(r'^172\.(1[6-9]|2[0-9]|3[0-1])\.').hasMatch(ip)) return ip;
     }
     return candidates.first;
   }
@@ -104,7 +104,7 @@ class PcConnectService {
       onConnected();
       final filename = (a.title ?? 'memory').replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
       final headers = <String, Object>{'content-type': _mime(file.path), 'cache-control': 'private, max-age=3600'};
-      if (parts[0] == 'download') headers['content-disposition'] = 'attachment; filename="\$filename"';
+      if (parts[0] == 'download') headers['content-disposition'] = 'attachment; filename="$filename"';
       return shelf.Response.ok(file.openRead(), headers: headers);
     }
     return shelf.Response.notFound('Not found.');
@@ -113,8 +113,8 @@ class PcConnectService {
   String _html() {
     final photoCount = photos.length;
     final timelineHtml = timelines.map((t) {
-      final ids = t.assets.where((id) => _asset(id) != null).map((id) => "'\${id.replaceAll("'", "\\'")}'").join(',');
-      return '<div class="timeline"><div><b>\${_safe(t.title)}</b><span>\${t.assets.length} photos</span></div><button onclick="downloadMany([\$ids])">Download timeline</button></div>';
+      final ids = t.assets.where((id) => _asset(id) != null).map((id) => "'${id.replaceAll("'", "\\'")}'").join(',');
+      return '<div class="timeline"><div><b>${_safe(t.title)}</b><span>${t.assets.length} photos</span></div><button onclick="downloadMany([$ids])">Download timeline</button></div>';
     }).join();
     return '''<!doctype html>
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -133,14 +133,14 @@ button.secondary{background:#ddd;color:#222}
 .timeline{background:white;padding:12px 14px;border-radius:14px;margin:8px 0;display:flex;justify-content:space-between;align-items:center;gap:12px}
 input{accent-color:#e58a9a}.count{opacity:.75}
 </style></head><body>
-<header><h2 style="margin:0">Little Memories — PC Connect</h2><div class="count">\$photoCount photos available</div></header>
+<header><h2 style="margin:0">Little Memories — PC Connect</h2><div class="count">$photoCount photos available</div></header>
 <main>
 <div class="toolbar"><button onclick="selectAll(true)">Select all</button><button class="secondary" onclick="selectAll(false)">Clear</button><button onclick="downloadSelected()">Download selected</button></div>
-<h3>Timelines</h3>\$timelineHtml
+<h3>Timelines</h3>$timelineHtml
 <h3>All memories</h3><div id="grid" class="grid">Loading…</div>
 </main>
 <script>
-const token=\${jsonEncode(token)};
+const token=${jsonEncode(token)};
 let data=[];
 function url(type,id){return '/'+type+'/'+encodeURIComponent(id)+'?token='+encodeURIComponent(token)}
 async function load(){
@@ -582,7 +582,7 @@ class _PcConnectPageState extends State<PcConnectPage> {
           const SizedBox(height: 8),
           const Text('Same Wi-Fi connection required', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
           const SizedBox(height: 6),
-          Text(starting ? 'Starting secure local transfer server…' : error != null ? 'Could not start: \$error' : 'Your photos never leave your local network.'),
+          Text(starting ? 'Starting secure local transfer server…' : error != null ? 'Could not start: $error' : 'Your photos never leave your local network.'),
         ]))),
         if (starting) const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator())),
         if (error != null) FilledButton.icon(onPressed: _start, icon: const Icon(Icons.refresh), label: const Text('Try again')),
@@ -598,8 +598,8 @@ class _PcConnectPageState extends State<PcConnectPage> {
             SelectableText(url, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700)),
           ]))),
           const SizedBox(height: 12),
-          Card(child: ListTile(leading: const Icon(Icons.photo_library_outlined), title: Text('\${widget.photos.length} photos ready'), subtitle: const Text('The PC page lets you preview, select and download photos and complete timelines.'))),
-          if (connectedAt != null) Card(child: ListTile(leading: const Icon(Icons.check_circle_outline), title: const Text('PC connected'), subtitle: Text('Last activity: \${connectedAt!.hour.toString().padLeft(2, '0')}:\${connectedAt!.minute.toString().padLeft(2, '0')}'))),
+          Card(child: ListTile(leading: const Icon(Icons.photo_library_outlined), title: Text('${widget.photos.length} photos ready'), subtitle: const Text('The PC page lets you preview, select and download photos and complete timelines.'))),
+          if (connectedAt != null) Card(child: ListTile(leading: const Icon(Icons.check_circle_outline), title: const Text('PC connected'), subtitle: Text('Last activity: ${connectedAt!.hour.toString().padLeft(2, '0')}:${connectedAt!.minute.toString().padLeft(2, '0')}'))),
           const SizedBox(height: 8),
           OutlinedButton.icon(onPressed: () async { await service?.stop(); if (mounted) setState(() => service = null); }, icon: const Icon(Icons.stop_circle_outlined), label: const Text('Stop PC connection')),
         ],
