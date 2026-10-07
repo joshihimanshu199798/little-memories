@@ -964,6 +964,7 @@ class _HomeState extends State<Home> {
     );
   }
 
+}
 
 class PcConnectPage extends StatefulWidget {
   final List<AssetEntity> photos;
