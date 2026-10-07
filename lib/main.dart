@@ -892,17 +892,66 @@ class _HomeState extends State<Home> {
           IconButton(onPressed:()=>setState(()=>tab=3),icon:const Icon(Icons.tune_rounded)),
         ]),
         const SizedBox(height:18),
-        if(featured!=null)Card(clipBehavior:Clip.antiAlias,child:InkWell(onTap:()=>_openPhoto(featured,recent),child:SizedBox(height:245,child:Stack(fit:StackFit.expand,children:[
-          Thumb(featured),
-          DecoratedBox(decoration:BoxDecoration(gradient:LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,colors:[Colors.transparent,Colors.black.withValues(alpha:.78)]))),
-          Positioned(left:18,right:18,bottom:18,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-            Text('FEATURED MEMORY',style:TextStyle(color:Colors.white.withValues(alpha:.72),fontSize:11,fontWeight:FontWeight.w900,letterSpacing:1.5)),
-            const SizedBox(height:4),
-            Text((names[featured.id]??'').trim().isNotEmpty?names[featured.id]!:'A moment worth keeping',style:const TextStyle(color:Colors.white,fontSize:23,fontWeight:FontWeight.w900)),
-            const SizedBox(height:3),Text(_dateLabel(featured.createDateTime),style:TextStyle(color:Colors.white.withValues(alpha:.82))),
-          ])),
-          Positioned(right:14,top:14,child:CircleAvatar(backgroundColor:Colors.black45,child:Icon(favorites.contains(featured.id)?Icons.favorite:Icons.favorite_border,color:Colors.white))),
-        ]))) else Card(child:Padding(padding:const EdgeInsets.all(28),child:Column(children:[const Icon(Icons.photo_library_outlined,size:52),const SizedBox(height:8),const Text('Your story starts here',style:TextStyle(fontSize:20,fontWeight:FontWeight.w900)),const SizedBox(height:4),const Text('Add photos to your phone gallery and they will appear here.')]))),
+        if(featured!=null)
+          Card(
+            clipBehavior:Clip.antiAlias,
+            child:InkWell(
+              onTap:()=>_openPhoto(featured,recent),
+              child:SizedBox(
+                height:245,
+                child:Stack(
+                  fit:StackFit.expand,
+                  children:[
+                    Thumb(featured),
+                    DecoratedBox(
+                      decoration:BoxDecoration(
+                        gradient:LinearGradient(
+                          begin:Alignment.topCenter,
+                          end:Alignment.bottomCenter,
+                          colors:[Colors.transparent,Colors.black.withValues(alpha:.78)],
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left:18,right:18,bottom:18,
+                      child:Column(
+                        crossAxisAlignment:CrossAxisAlignment.start,
+                        children:[
+                          Text('FEATURED MEMORY',style:TextStyle(color:Colors.white.withValues(alpha:.72),fontSize:11,fontWeight:FontWeight.w900,letterSpacing:1.5)),
+                          const SizedBox(height:4),
+                          Text((names[featured.id]??'').trim().isNotEmpty?names[featured.id]!:'A moment worth keeping',style:const TextStyle(color:Colors.white,fontSize:23,fontWeight:FontWeight.w900)),
+                          const SizedBox(height:3),
+                          Text(featured.createDateTime.toLocal().toString().split(' ').first,style:TextStyle(color:Colors.white.withValues(alpha:.82))),
+                        ],
+                      ),
+                    ),
+                    Positioned(
+                      right:14,top:14,
+                      child:CircleAvatar(
+                        backgroundColor:Colors.black45,
+                        child:Icon(favorites.contains(featured.id)?Icons.favorite:Icons.favorite_border,color:Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+        else
+          Card(
+            child:Padding(
+              padding:const EdgeInsets.all(28),
+              child:Column(
+                children:[
+                  const Icon(Icons.photo_library_outlined,size:52),
+                  const SizedBox(height:8),
+                  const Text('Your story starts here',style:TextStyle(fontSize:20,fontWeight:FontWeight.w900)),
+                  const SizedBox(height:4),
+                  const Text('Add photos to your phone gallery and they will appear here.'),
+                ],
+              ),
+            ),
+          ),
         const SizedBox(height:16),
         SizedBox(height:42,child:ListView(scrollDirection:Axis.horizontal,children:[
           ChoiceChip(label:const Text('All memories'),selected:true,onSelected:(_)=>setState(()=>showAllPhotos=true)),
