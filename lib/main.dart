@@ -34,11 +34,12 @@ class PcConnectService {
   final Map<String, String> names;
   final Map<String, String> captions;
   final VoidCallback onConnected;
+  final VoidCallback onBackupStarted;
   HttpServer? _server;
   String? url;
   final String token = List.generate(18, (_) => Random.secure().nextInt(16).toRadixString(16)).join();
 
-  PcConnectService({required this.photos, required this.timelines, required this.names, required this.captions, required this.onConnected});
+  PcConnectService({required this.photos, required this.timelines, required this.names, required this.captions, required this.onConnected, required this.onBackupStarted});
   bool get running => _server != null;
 
   Future<void> start() async {
@@ -85,6 +86,10 @@ class PcConnectService {
     if (request.url.path == '/') {
       onConnected();
       return shelf.Response.ok(_html(), headers: {'content-type': 'text/html; charset=utf-8'});
+    }
+    if (request.url.path == '/api/backup-start') {
+      onBackupStarted();
+      return shelf.Response.ok(jsonEncode({'ok': true, 'count': photos.length}), headers: {'content-type': 'application/json'});
     }
     if (request.url.path == '/api/photos') {
       onConnected();
@@ -135,7 +140,7 @@ input{accent-color:#e58a9a}.count{opacity:.75}
 </style></head><body>
 <header><h2 style="margin:0">Little Memories — PC Connect</h2><div class="count">$photoCount photos available</div></header>
 <main>
-<div class="toolbar"><button onclick="selectAll(true)">Select all</button><button class="secondary" onclick="selectAll(false)">Clear</button><button onclick="downloadSelected()">Download selected</button></div>
+<div class="toolbar"><button onclick="selectAll(true)">Select all</button><button class="secondary" onclick="selectAll(false)">Clear</button><button onclick="downloadSelected()">Download selected</button><button onclick="fullBackup()">Backup all to PC</button></div>
 <h3>Timelines</h3>$timelineHtml
 <h3>All memories</h3><div id="grid" class="grid">Loading…</div>
 </main>
@@ -151,6 +156,10 @@ function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':
 function selectAll(v){document.querySelectorAll('.pick').forEach(x=>x.checked=v)}
 function downloadMany(ids){ids.filter(Boolean).forEach((id,i)=>setTimeout(()=>{const a=document.createElement('a');a.href=url('download',id);a.download='';document.body.appendChild(a);a.click();a.remove()},i*500))}
 function downloadSelected(){downloadMany([...document.querySelectorAll('.pick:checked')].map(x=>x.value))}
+async function fullBackup(){
+ const r=await fetch('/api/backup-start?token='+encodeURIComponent(token));
+ if(r.ok){ downloadMany(data.map(p=>p.id)); alert('Full backup started. Keep this browser tab open until the downloads finish.'); }
+}
 load();
 </script></body></html>''';
   }
@@ -577,7 +586,7 @@ class _PcConnectPageState extends State<PcConnectPage> {
   @override void initState() { super.initState(); _start(); }
   Future<void> _start() async {
     setState(() { starting = true; error = null; });
-    final s = PcConnectService(photos: widget.photos, timelines: widget.timelines, names: widget.names, captions: widget.captions, onConnected: () { if (mounted) setState(() => connectedAt = DateTime.now()); });
+    final s = PcConnectService(photos: widget.photos, timelines: widget.timelines, names: widget.names, captions: widget.captions, onConnected: () { if (mounted) setState(() => connectedAt = DateTime.now()); }, onBackupStarted: widget.onBackupStarted);
     try {
       await s.start();
       if (mounted) setState(() { service = s; starting = false; });
@@ -620,7 +629,7 @@ class _PcConnectPageState extends State<PcConnectPage> {
             const SizedBox(height: 6),
             const Text('Download all memories from this phone to the connected Windows PC.'),
             const SizedBox(height: 12),
-            FilledButton.icon(onPressed: () { widget.onBackupStarted(); }, icon: const Icon(Icons.backup_outlined), label: const Text('Start full backup on PC')),
+            FilledButton.icon(onPressed: () { widget.onBackupStarted(); }, icon: const Icon(Icons.backup_outlined), label: const Text('Open full backup page')),
           ]))),
           if (connectedAt != null) Card(child: ListTile(leading: const Icon(Icons.check_circle_outline), title: const Text('PC connected'), subtitle: Text('Last activity: ${connectedAt!.hour.toString().padLeft(2, '0')}:${connectedAt!.minute.toString().padLeft(2, '0')}'))),
           const SizedBox(height: 8),
