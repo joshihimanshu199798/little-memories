@@ -25,7 +25,7 @@ class Timeline {
     id: j['id'] as String, title: j['title'] as String,
     description: (j['description'] ?? '') as String,
     assets: List<String>.from(j['assets'] ?? const []),
-    coverId: (j['coverId'] ?? '') as String == '' ? null : j['coverId'] as String,
+    coverId: ((j['coverId'] ?? '') as String).isEmpty ? null : (j['coverId'] as String),
   );
 }
 
@@ -521,7 +521,21 @@ class _HomeState extends State<Home> {
   }
 
   void _openPhoto(AssetEntity a, List<AssetEntity> list) => Navigator.push(context,
-    MaterialPageRoute(builder: (_) => Viewer(asset: a, all: list, onEdit: _openPhotoEditor, onShare: (x) => _share([x], 'Shared from Little Memories'))));
+    MaterialPageRoute(builder: (_) => Viewer(
+      asset: a,
+      all: list,
+      onEdit: _openPhotoEditor,
+      onShare: (x) => _share([x], 'Shared from Little Memories'),
+      memoryName: names[a.id] ?? a.title ?? 'Memory',
+      caption: captions[a.id] ?? '',
+      favorite: favorites.contains(a.id),
+      onToggleFavorite: () async {
+        setState(() {
+          if (favorites.contains(a.id)) { favorites.remove(a.id); } else { favorites.add(a.id); }
+        });
+        await _save();
+      },
+    )));
 
 
   Widget _smartAlbums() {
@@ -693,6 +707,15 @@ class _HomeState extends State<Home> {
                     onAddPhotos: () => _addToTimeline(t),
                     onEditTimeline: () => _createTimeline(existing: t),
                     onSave: _save,
+                    nameFor: (id) => names[id] ?? _find(id)?.title ?? 'Memory',
+                    captionFor: (id) => captions[id] ?? '',
+                    isFavorite: (id) => favorites.contains(id),
+                    onToggleFavorite: (a) async {
+                      setState(() {
+                        if (favorites.contains(a.id)) { favorites.remove(a.id); } else { favorites.add(a.id); }
+                      });
+                      await _save();
+                    },
                   ))),
                 ),
               );
@@ -795,6 +818,15 @@ class _HomeState extends State<Home> {
               onAddPhotos: () => _addToTimeline(t),
               onEditTimeline: () => _createTimeline(existing: t),
               onSave: _save,
+              nameFor: (id) => names[id] ?? _find(id)?.title ?? 'Memory',
+                    captionFor: (id) => captions[id] ?? '',
+                    isFavorite: (id) => favorites.contains(id),
+                    onToggleFavorite: (a) async {
+                      setState(() {
+                        if (favorites.contains(a.id)) { favorites.remove(a.id); } else { favorites.add(a.id); }
+                      });
+                      await _save();
+                    },
             ))),
             trailing: PopupMenuButton<String>(
               onSelected: (v) {
@@ -1009,7 +1041,11 @@ class TimelinePage extends StatefulWidget {
   final Future<void> Function() onAddPhotos;
   final Future<void> Function() onEditTimeline;
   final Future<void> Function() onSave;
-  const TimelinePage({super.key, required this.t, required this.find, required this.grid, required this.onEdit, required this.onShare, required this.onAddPhotos, required this.onEditTimeline, required this.onSave});
+  final String Function(String) nameFor;
+  final String Function(String) captionFor;
+  final bool Function(String) isFavorite;
+  final Future<void> Function(AssetEntity) onToggleFavorite;
+  const TimelinePage({super.key, required this.t, required this.find, required this.grid, required this.onEdit, required this.onShare, required this.onAddPhotos, required this.onEditTimeline, required this.onSave, required this.nameFor, required this.captionFor, required this.isFavorite, required this.onToggleFavorite});
   @override State<TimelinePage> createState() => _TimelinePageState();
 }
 class _TimelinePageState extends State<TimelinePage> {
@@ -1073,7 +1109,7 @@ class _TimelinePageState extends State<TimelinePage> {
         if (list.isEmpty) const SliverFillRemaining(hasScrollBody: false, child: Center(child: Text('Add memories to this timeline to get started.')))
         else SliverPadding(padding: const EdgeInsets.all(8), sliver: SliverGrid(
           delegate: SliverChildBuilderDelegate((_, i) => GestureDetector(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => Viewer(asset: list[i], all: list, onEdit: widget.onEdit, onShare: widget.onShare))),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => Viewer(asset: list[i], all: list, onEdit: widget.onEdit, onShare: widget.onShare, memoryName: widget.nameFor(list[i].id), caption: widget.captionFor(list[i].id), favorite: widget.isFavorite(list[i].id), onToggleFavorite: () => widget.onToggleFavorite(list[i])))),
             child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Thumb(list[i])),
           ), childCount: list.length),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: widget.grid, crossAxisSpacing: 5, mainAxisSpacing: 5),
@@ -1094,21 +1130,95 @@ class Viewer extends StatefulWidget {
 class _ViewerState extends State<Viewer> {
   late int index;
   late final PageController controller;
+
   @override void initState() {
-    super.initState(); index = widget.all.indexOf(widget.asset); if (index < 0) index = 0; controller = PageController(initialPage: index);
+    super.initState();
+    index = widget.all.indexOf(widget.asset);
+    if (index < 0) index = 0;
+    controller = PageController(initialPage: index);
   }
-  @override Widget build(BuildContext context) => Scaffold(
-    backgroundColor: Colors.black,
-    appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white, title: Text((index + 1).toString() + '/' + widget.all.length.toString()), actions: [
-      IconButton(onPressed: () => widget.onEdit(widget.all[index]), tooltip: 'Edit photo', icon: const Icon(Icons.tune_outlined)),
-      IconButton(onPressed: () => widget.onShare(widget.all[index]), icon: const Icon(Icons.share_outlined)),
-    ]),
-    body: PageView.builder(controller: controller, itemCount: widget.all.length, onPageChanged: (i) => setState(() => index = i),
-      itemBuilder: (_, i) => FutureBuilder<File?>(
-        future: widget.all[i].file,
-        builder: (_, s) => s.hasData ? InteractiveViewer(child: Center(child: Image.file(s.data!, fit: BoxFit.contain))) : const Center(child: CircularProgressIndicator()),
-      )),
-  );
+
+  @override Widget build(BuildContext context) {
+    final current = widget.all[index];
+    final currentName = index == widget.all.indexOf(widget.asset) ? widget.memoryName : current.title;
+    final currentCaption = index == widget.all.indexOf(widget.asset) ? widget.caption : null;
+    final currentFavorite = index == widget.all.indexOf(widget.asset) ? widget.favorite : false;
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text('${index + 1}/${widget.all.length}'),
+        actions: [
+          if (widget.onToggleFavorite != null)
+            IconButton(
+              onPressed: widget.onToggleFavorite,
+              tooltip: currentFavorite ? 'Remove favorite' : 'Add favorite',
+              icon: Icon(currentFavorite ? Icons.favorite : Icons.favorite_border),
+            ),
+          IconButton(onPressed: () => widget.onEdit(current), tooltip: 'Edit photo', icon: const Icon(Icons.tune_outlined)),
+          IconButton(onPressed: () => widget.onShare(current), tooltip: 'Share', icon: const Icon(Icons.share_outlined)),
+        ],
+      ),
+      body: Stack(
+        children: [
+          PageView.builder(
+            controller: controller,
+            itemCount: widget.all.length,
+            onPageChanged: (i) => setState(() => index = i),
+            itemBuilder: (_, i) => FutureBuilder<File?>(
+              future: widget.all[i].file,
+              builder: (_, s) => s.hasData
+                  ? InteractiveViewer(child: Center(child: Image.file(s.data!, fit: BoxFit.contain)))
+                  : const Center(child: CircularProgressIndicator()),
+            ),
+          ),
+          Positioned(
+            left: 12, right: 12, bottom: 12,
+            child: SafeArea(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(.72),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.white.withOpacity(.12)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      currentName?.trim().isNotEmpty == true ? currentName! : 'Memory',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(_dateLabel(current.createDateTime), style: TextStyle(color: Colors.white.withOpacity(.72), fontSize: 12)),
+                    if (currentCaption?.trim().isNotEmpty == true) ...[
+                      const SizedBox(height: 7),
+                      Text(currentCaption!, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _dateLabel(DateTime d) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${months[d.month - 1]} ${d.day}, ${d.year} • ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  }
+
+  @override void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
 }
 
 class SettingsPage extends StatelessWidget {
