@@ -688,7 +688,11 @@ class _HomeState extends State<Home> {
                   subtitle: Text(t.assets.length.toString() + ' photos' + (t.description.isEmpty ? '' : ' • ' + t.description)),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TimelinePage(
-                    t: t, find: _find, grid: grid, onEdit: _openPhotoEditor, onShare: (a) => _share([a], t.title),
+                    t: t, find: _find, grid: grid, onEdit: _openPhotoEditor,
+                    onShare: (a) => _share([a], t.title),
+                    onAddPhotos: () => _addToTimeline(t),
+                    onEditTimeline: () => _createTimeline(existing: t),
+                    onSave: _save,
                   ))),
                 ),
               );
