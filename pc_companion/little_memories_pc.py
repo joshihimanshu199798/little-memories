@@ -34,6 +34,9 @@ class Companion(tk.Tk):
         self.data = []
         self.busy = False
         self.auto_job = None
+        self.discovery_job = None
+        self.discovery_running = False
+        self.discovery_watch = tk.BooleanVar(value=False)
 
         root = ttk.Frame(self, padding=20)
         root.pack(fill="both", expand=True)
@@ -56,7 +59,8 @@ class Companion(tk.Tk):
         row2.pack(fill="x")
         ttk.Button(row2, text="Test connection", command=self.test).pack(side="left")
         ttk.Button(row2, text="Reconnect paired phone", command=self.reconnect_paired).pack(side="left", padx=8)
-        ttk.Button(row2, text="🔎 Find phone automatically", command=self.discover_phone).pack(side="left", padx=8)
+        ttk.Button(row2, text="Find phone automatically", command=self.discover_phone).pack(side="left", padx=8)
+        ttk.Checkbutton(row2, text="Keep watching", variable=self.discovery_watch, command=self.toggle_discovery_watch).pack(side="left", padx=8)
 
         dest = ttk.LabelFrame(root, text="2. Backup folder", padding=14)
         dest.pack(fill="x", pady=12)
@@ -146,6 +150,40 @@ class Companion(tk.Tk):
         if self.test():
             self.write("Trusted phone reconnected without scanning a new QR code.")
 
+    def toggle_discovery_watch(self):
+        if self.discovery_watch.get():
+            self.write("Continuous phone discovery enabled — checking every 10 seconds.")
+            self.schedule_discovery()
+        else:
+            if self.discovery_job:
+                try:
+                    self.after_cancel(self.discovery_job)
+                except tk.TclError:
+                    pass
+                self.discovery_job = None
+            self.write("Continuous phone discovery disabled.")
+
+    def schedule_discovery(self):
+        if self.discovery_job:
+            try:
+                self.after_cancel(self.discovery_job)
+            except tk.TclError:
+                pass
+        if self.discovery_watch.get():
+            self.discovery_job = self.after(10000, self.run_discovery_watch)
+
+    def run_discovery_watch(self):
+        self.discovery_job = None
+        if not self.discovery_watch.get() or self.discovery_running or self.busy:
+            self.schedule_discovery()
+            return
+        pair = self.load_pairing()
+        if not pair or not pair.get("pair"):
+            self.schedule_discovery()
+            return
+        self.discovery_running = True
+        threading.Thread(target=self._discover_worker, args=(pair["pair"], True), daemon=True).start()
+
     def discover_phone(self):
         pair = self.load_pairing()
         if not pair or not pair.get("pair"):
@@ -155,9 +193,9 @@ class Companion(tk.Tk):
             return
         self.status.set("Searching the local Wi-Fi network for Little Memories…")
         self.write("Automatic discovery started.")
-        threading.Thread(target=self._discover_worker, args=(pair["pair"],), daemon=True).start()
+        threading.Thread(target=self._discover_worker, args=(pair["pair"], False), daemon=True).start()
 
-    def _discover_worker(self, pair):
+    def _discover_worker(self, pair, silent=False):
         sock = None
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -180,12 +218,12 @@ class Companion(tk.Tk):
                     found = (addr[0], int(item.get("port", 0)))
                     break
             if not found:
-                self.after(0, lambda: self._discovery_done(None))
+                self.after(0, lambda: self._discovery_done(None, silent))
                 return
             ip, port = found
-            self.after(0, lambda: self._discovery_done((ip, port, pair)))
+            self.after(0, lambda: self._discovery_done((ip, port, pair), silent))
         except Exception as e:
-            self.after(0, lambda: self._discovery_error(str(e)))
+            self.after(0, lambda: self._discovery_error(str(e), silent))
         finally:
             if sock:
                 try:
@@ -193,21 +231,29 @@ class Companion(tk.Tk):
                 except OSError:
                     pass
 
-    def _discovery_done(self, found):
+    def _discovery_done(self, found, silent=False):
+        self.discovery_running = False
+        if self.discovery_watch.get():
+            self.schedule_discovery()
         if not found:
-            self.status.set("Phone not found on this Wi-Fi network.")
-            self.write("Automatic discovery found no Little Memories phone.")
-            messagebox.showinfo(APP_NAME, "Phone not found. Make sure Little Memories → Connect to Windows PC is open and both devices are on the same Wi-Fi.")
+            if not silent:
+                self.status.set("Phone not found on this Wi-Fi network.")
+                self.write("Automatic discovery found no Little Memories phone.")
+                messagebox.showinfo(APP_NAME, "Phone not found. Make sure Little Memories → Connect to Windows PC is open and both devices are on the same Wi-Fi.")
             return
         ip, port, pair = found
         self.url.set(f"http://{ip}:{port}/?pair={urllib.parse.quote(pair, safe='')}")
         self.write(f"Phone discovered automatically at {ip}:{port}.")
         self.test(quiet=False)
 
-    def _discovery_error(self, error):
+    def _discovery_error(self, error, silent=False):
+        self.discovery_running = False
+        if self.discovery_watch.get():
+            self.schedule_discovery()
         self.status.set("Automatic discovery failed.")
         self.write("DISCOVERY ERROR: " + error)
-        messagebox.showerror(APP_NAME, "Automatic discovery failed: " + error)
+        if not silent:
+            messagebox.showerror(APP_NAME, "Automatic discovery failed: " + error)
 
     def base(self):
         u = self.url.get().strip()
