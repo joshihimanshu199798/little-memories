@@ -252,7 +252,7 @@ class _AppState extends State<LittleMemoriesApp> {
   ThemeData _buildTheme(ComicTheme t,bool isDark){
     final scheme=ColorScheme.fromSeed(seedColor:t.seed,brightness:isDark?Brightness.dark:Brightness.light);
     final radius=t.radius;
-    final cardShape=RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==3 ? .22 : .16),width:t.style==0 ? 2 : (t.style==5 ? .8 : 1.4)));
+    final cardShape=RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==3 ? .22 : .16),width:t.style==0?2:t.style==5?.8:1.4));
     final baseText=ThemeData(useMaterial3:true).textTheme;
     final text=baseText.apply(fontFamily:t.fontFamily,fontFamilyFallback:const ['sans-serif','serif'],bodyColor:scheme.onSurface,displayColor:scheme.onSurface);
     final buttonShape=RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.buttonRadius),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==0 ? .75 : .25),width:t.style==0?1.6:1));
@@ -1109,10 +1109,7 @@ class _HomeState extends State<Home> {
     ]);
   }
 
-  double _themeRadius()=>comicThemes[widget.themeIndex.clamp(0,comicThemes.length-1)].radius;
-  Widget _themedBody(Widget child)=>ThemeBackdrop(style:widget.themeIndex,child:child);
-
-  Widget _gallery({bool onlyFavorites = false}) {
+  double _themeRadius()=>comicThemes[widget.themeIndex.clamp(0,comicThemes.length-1)].radius;\n  Widget _themedBody(Widget child)=>ThemeBackdrop(style:widget.themeIndex,child:child);\n\n  Widget _gallery({bool onlyFavorites = false}) {
     final q = searchQuery.trim().toLowerCase();
     final storyIds = timelines.expand((t) => t.assets).toSet();
     var source = photos.where((a) => !hiddenIds.contains(a.id)).toList();
@@ -1372,7 +1369,7 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage>{
     return Scaffold(
       appBar:AppBar(
         title:Text(selecting?selected.length.toString()+' selected':widget.name),
-        actions:selecting ? [
+        actions:selecting?[
           IconButton(onPressed:removeSelected,tooltip:'Remove from album',icon:const Icon(Icons.remove_circle_outline)),
           IconButton(onPressed:deleteSelected,tooltip:'Delete photos',icon:const Icon(Icons.delete_outline)),
           IconButton(onPressed:()=>setState((){selected.clear();selecting=false;}),icon:const Icon(Icons.close)),
@@ -1396,7 +1393,7 @@ class _MemoryAlbumPageState extends State<MemoryAlbumPage>{
             final a=widget.photos[i],isSelected=selected.contains(a.id);
             return GestureDetector(
               onTap:()=>selecting?toggle(a):Navigator.push(context,MaterialPageRoute(builder:(_)=>Viewer(asset:a,all:widget.photos,onEdit:(_)=>Future.value(),onShare:(_)=>Future.value())),
-              onLongPress:(){ setState(() { selecting=true; toggle(a); }); },
+              onLongPress:()=>setState((){selecting=true;toggle(a);}),
               child:Stack(fit:StackFit.expand,children:[
                 ClipRRect(borderRadius:BorderRadius.circular(10),child:Thumb(a)),
                 if(isSelected)Positioned.fill(child:Container(
