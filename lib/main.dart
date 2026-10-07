@@ -337,7 +337,7 @@ class _HomeState extends State<Home> {
       final n = p.name.toLowerCase();
       if (n.contains('recently deleted') || n.contains('trash') || n.contains('recycle bin') || n == 'bin' || n.contains('recently removed')) {
         deleted.add(p);
-      } else if (p.assetCount > 0 || p.isAll) {
+      } else {
         usable.add(p);
       }
     }
@@ -1167,7 +1167,7 @@ class _HomeState extends State<Home> {
             const SizedBox(width: 10),
             Expanded(child: _specialAlbumCard(
               icon: Icons.delete_sweep_rounded, title: 'Recently Deleted',
-              subtitle: deviceDeletedAlbums.isEmpty ? 'Not exposed by Android' : deviceDeletedAlbums.map((p) => p.assetCount).fold<int>(0, (a,b) => a+b).toString() + ' items',
+              subtitle: deviceDeletedAlbums.isEmpty ? 'Not exposed by Android' : 'System trash • open to view',
               onTap: deviceDeletedAlbums.isEmpty
                   ? () => _showDeletedInfo()
                   : () => Navigator.push(context, MaterialPageRoute(builder: (_) => DeviceAlbumPage(paths: deviceDeletedAlbums, title: 'Recently Deleted', grid: grid, hiddenIds: const {}))),
@@ -1248,18 +1248,24 @@ class _HomeState extends State<Home> {
       future: path.getAssetListPaged(page: 0, size: 1),
       builder: (_, s) {
         final cover = s.data?.isNotEmpty == true ? s.data!.first : null;
-        return SizedBox(width: ((MediaQuery.of(context).size.width - 48) / 2).clamp(145.0, 220.0), height: 170, child: Card(clipBehavior: Clip.antiAlias, child: InkWell(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DeviceAlbumPage(paths: [path], title: path.name, grid: grid, hiddenIds: hiddenIds))),
-          child: Stack(fit: StackFit.expand, children: [
-            cover == null ? Container(color: cs.surfaceContainerHighest, child: Icon(Icons.folder_rounded, size: 48, color: cs.primary)) : Thumb(cover),
-            DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black.withValues(alpha: .84)]))),
-            Positioned(left: 12, right: 12, bottom: 11, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(path.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 2),
-              Text(path.assetCount.toString() + ' photos', style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w700)),
-            ])),
-          ]),
-        )));
+        return FutureBuilder<int>(
+          future: path.assetCountAsync,
+          builder: (_, countState) {
+            final count = countState.data;
+            return SizedBox(width: ((MediaQuery.of(context).size.width - 48) / 2).clamp(145.0, 220.0), height: 170, child: Card(clipBehavior: Clip.antiAlias, child: InkWell(
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DeviceAlbumPage(paths: [path], title: path.name, grid: grid, hiddenIds: hiddenIds))),
+              child: Stack(fit: StackFit.expand, children: [
+                cover == null ? Container(color: cs.surfaceContainerHighest, child: Icon(Icons.folder_rounded, size: 48, color: cs.primary)) : Thumb(cover),
+                DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black.withValues(alpha: .84)]))),
+                Positioned(left: 12, right: 12, bottom: 11, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(path.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 2),
+                  Text(count == null ? 'Loading photos…' : count.toString() + ' photos', style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w700)),
+                ])),
+              ]),
+            )));
+          },
+        );
       },
     );
   }
