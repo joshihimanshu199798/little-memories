@@ -412,7 +412,8 @@ class _HomeState extends State<Home> {
     await p.setInt('galleryFilter', galleryFilter);
     await p.setInt('grid', grid);
     await p.setString('childName', childName);
-    await p.setString('childBirthday', childBirthday);\n    await p.setString('memoryAlbums', jsonEncode(memoryAlbums));
+    await p.setString('childBirthday', childBirthday);
+    await p.setString('memoryAlbums', jsonEncode(memoryAlbums));
   }
 
   AssetEntity? _find(String id) {
