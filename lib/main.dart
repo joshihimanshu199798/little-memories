@@ -431,7 +431,7 @@ class _HomeState extends State<Home> {
         Text('❤️ ' + favorites.length.toString() + ' favorites'),
         Text('📖 ' + timelines.length.toString() + ' stories'),
         Text('📅 ' + years.length.toString() + ' years • ' + months.length.toString() + ' months'),
-        const SizedBox(height: 14),    Card(child:ListTile(leading:const Icon(Icons.palette_outlined),title:const Text('Comic app theme'),subtitle:Text(comicThemes[themeIndex].name),onTap:()=>showModalBottomSheet(context:context,builder:(_)=>SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[const Text('Choose your comic style',style:TextStyle(fontSize:22,fontWeight:FontWeight.w900)),const SizedBox(height:12),...List.generate(comicThemes.length,(i)=>Card(child:RadioListTile<int>(value:i,groupValue:themeIndex,title:Text(comicThemes[i].name),secondary:CircleAvatar(backgroundColor:comicThemes[i].seed),onChanged:(v){if(v!=null){onTheme(v);Navigator.pop(context);}})))]))))),
+        const SizedBox(height: 14),
         Text(milestones.isEmpty ? 'Next milestone: keep collecting memories ✨' : 'Milestones reached: ' + milestones.join(', ')),
       ]),
       actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Great'))],
@@ -1531,7 +1531,7 @@ class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key, required this.grid, required this.dark, required this.themeIndex, required this.onGrid, required this.onTheme, required this.onDark, required this.onShare, required this.childName, required this.childBirthday, required this.onChildEdit, required this.onPcConnect, required this.onBackup, required this.backupHistory});
   @override Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(16), children: [
     const Text('Professional controls', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800)),
-    const SizedBox(height: 14),
+    const SizedBox(height: 14),    Card(child:ListTile(leading:const Icon(Icons.palette_outlined),title:const Text('Comic app theme'),subtitle:Text(comicThemes[themeIndex].name),onTap:()=>showModalBottomSheet(context:context,builder:(_)=>SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[const Text('Choose your comic style',style:TextStyle(fontSize:22,fontWeight:FontWeight.w900)),const SizedBox(height:12),...List.generate(comicThemes.length,(i)=>Card(child:RadioListTile<int>(value:i,groupValue:themeIndex,title:Text(comicThemes[i].name),secondary:CircleAvatar(backgroundColor:comicThemes[i].seed),onChanged:(v){if(v!=null){onTheme(v);Navigator.pop(context);}})))]))))),
     Card(child: SwitchListTile(value: dark, onChanged: onDark, title: const Text('Dark mode'), secondary: const Icon(Icons.dark_mode_outlined))),
     Card(child: ListTile(title: const Text('Gallery grid size'), subtitle: Slider(value: grid.toDouble(), min: 2, max: 6, divisions: 4, label: grid.toString() + ' columns', onChanged: (v) => onGrid(v.round())), trailing: Text(grid.toString() + '×'))),
     Card(child: ListTile(leading: const Icon(Icons.child_care_outlined), title: Text(childName), subtitle: Text(childBirthday.isEmpty ? 'Add birthday and milestones' : 'Birthday: $childBirthday'), onTap: onChildEdit)),
