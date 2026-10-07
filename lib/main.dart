@@ -498,6 +498,7 @@ class _HomeState extends State<Home> {
     if(!ok)return;
     try{
       final deleted=await PhotoManager.editor.deleteWithIds(selectedIds.toList());
+      if (!mounted) return;
       setState((){
         for(final id in deleted){favorites.remove(id);hiddenIds.remove(id);names.remove(id);captions.remove(id);memoryAlbums.forEach((k,v)=>v.remove(id));}
         selectedIds.clear();selectionMode=false;
