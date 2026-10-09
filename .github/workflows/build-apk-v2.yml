@@ -3,10 +3,23 @@ name: Build Little Memories APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Daily at 08:00 India Standard Time (02:30 UTC).
+    - cron: "30 2 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: little-memories-apk-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
+    name: Analyze and build Android APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -15,7 +28,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.2'
+          flutter-version: "3.41.2"
           channel: stable
           cache: true
 
@@ -35,7 +48,7 @@ jobs:
               <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
               <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
               <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>"""
-          s = s.replace('<application', perms + '\n    <application', 1)
+          s = s.replace('<application', perms + '\\n    <application', 1)
           p.write_text(s)
           PY
 
@@ -55,9 +68,28 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Upload single APK
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: little-memories-latest-apk
+          name: little-memories-apk-run-${{ github.run_number }}
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish latest APK to GitHub Releases
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Little Memories — Latest APK
+          target_commitish: ${{ github.sha }}
+          body: |
+            Automatically generated Android APK for Little Memories.
+
+            - Workflow run: #${{ github.run_number }}
+            - Source commit: ${{ github.sha }}
+            - Trigger: ${{ github.event_name }}
+            - Built with Flutter 3.41.2
+          files: build/app/outputs/flutter-apk/app-release.apk
+          overwrite_files: true
+          make_latest: true
