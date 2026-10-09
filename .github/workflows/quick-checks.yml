@@ -1,0 +1,56 @@
+name: Little Memories Fast Checks
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Lightweight source-health check every hour.
+    - cron: "0 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: little-memories-fast-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Fast Flutter quality checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout latest source
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.2"
+          channel: stable
+          cache: true
+
+      - name: Verify app entry point
+        run: |
+          test -s lib/main.dart
+          test -s pubspec.yaml
+          echo "Source commit: ${GITHUB_SHA}"
+          sha256sum lib/main.dart
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze Dart source
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Run tests when present
+        shell: bash
+        run: |
+          if find test -type f -name '*_test.dart' -print -quit 2>/dev/null | grep -q .; then
+            flutter test
+          else
+            echo "No Dart test files found; skipping flutter test."
+          fi
