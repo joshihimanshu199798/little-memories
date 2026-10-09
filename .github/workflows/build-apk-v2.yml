@@ -4,11 +4,6 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
-  schedule:
-    # Daily at 08:00 India Standard Time (02:30 UTC).
-    - cron: "30 2 * * *"
 
 permissions:
   contents: write
