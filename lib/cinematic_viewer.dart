@@ -52,6 +52,59 @@ class _CinematicViewerState extends State<CinematicViewer> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _showDetails() async {
+    final asset = _current;
+    int? bytes;
+    try {
+      final file = await asset.file;
+      if (file != null && await file.exists()) bytes = await file.length();
+    } catch (_) {}
+    if (!mounted) return;
+
+    final date = asset.createDateTime;
+    final dateText = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} '
+        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    final sizeText = bytes == null
+        ? 'Unavailable'
+        : bytes < 1024
+            ? '$bytes B'
+            : bytes < 1024 * 1024
+                ? '${(bytes / 1024).toStringAsFixed(1)} KB'
+                : '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+    final folder = (asset.relativePath ?? '').trim();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            ListTile(
+              leading: const Icon(Icons.info_outline_rounded),
+              title: Text(_title(asset), maxLines: 1, overflow: TextOverflow.ellipsis),
+              subtitle: const Text('File details stay on this device'),
+            ),
+            _detailRow(Icons.calendar_today_outlined, 'Date taken', dateText),
+            _detailRow(Icons.aspect_ratio_outlined, 'Resolution', '${asset.width} × ${asset.height} px'),
+            _detailRow(Icons.storage_outlined, 'File size', sizeText),
+            _detailRow(Icons.folder_outlined, 'Folder', folder.isEmpty ? 'Unavailable' : folder),
+            _detailRow(Icons.photo_outlined, 'Media type', asset.type.name.toUpperCase()),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(IconData icon, String label, String value) {
+    return ListTile(
+      dense: true,
+      leading: Icon(icon),
+      title: Text(label),
+      subtitle: Text(value, maxLines: 2, overflow: TextOverflow.ellipsis),
+    );
+  }
+
   void _more() {
     showModalBottomSheet(
       context: context,
@@ -78,6 +131,15 @@ class _CinematicViewerState extends State<CinematicViewer> {
               leading: const Icon(Icons.share_outlined, color: Colors.white),
               title: const Text('Share memory', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
               onTap: () { Navigator.pop(context); widget.onShare(_current); },
+            ),
+            ListTile(
+              leading: const Icon(Icons.info_outline_rounded, color: Colors.white),
+              title: const Text('Photo details', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+              onTap: () async {
+                Navigator.pop(context);
+                await Future<void>.delayed(const Duration(milliseconds: 150));
+                if (mounted) await _showDetails();
+              },
             ),
           ]),
         ),
