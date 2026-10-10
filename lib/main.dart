@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:math';
+import 'dart:math' as math;
 import 'dart:async';
 import 'package:crypto/crypto.dart';
 import 'package:image/image.dart' as img;
@@ -1807,7 +1808,7 @@ class _HomeState extends State<Home> {
             const ListTile(title: Text('Create your next memory collection', style: TextStyle(fontWeight: FontWeight.w900))),
             ListTile(leading: const Icon(Icons.checklist_rounded), title: const Text('Select photos'), onTap: () { Navigator.pop(context); setState(() => selectionMode = true); }),
             ListTile(leading: const Icon(Icons.insights_rounded), title: const Text('Memory statistics'), onTap: () { Navigator.pop(context); _memoryStatistics(); }),
-            ListTile(leading: const Icon(Icons.palette_outlined), title: const Text('Color Palette Search'), subtitle: const Text('Find photos with a similar color mood'), onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => ColorPaletteSearchPage(photos: photos))); }),
+            ListTile(leading: const Icon(Icons.palette_outlined), title: const Text('Color Palette Search'), subtitle: const Text('Find photos with a similar color mood'), onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => ColorPaletteSearchPage(photos: photos.where((photo) => !hiddenIds.contains(photo.id)).toList()))); }),
             ListTile(leading: const Icon(Icons.content_copy_rounded), title: const Text('Find likely duplicates'), onTap: () { Navigator.pop(context); _smartDuplicateScan(); }),
             ListTile(leading: const Icon(Icons.lock_outline_rounded), title: const Text('Private / Hidden memories'), onTap: () { Navigator.pop(context); _showHiddenMemories(); }),
             ListTile(leading: const Icon(Icons.slideshow_rounded), title: const Text('Play memory slideshow'), onTap: () { Navigator.pop(context); _startSlideshow(); }),
