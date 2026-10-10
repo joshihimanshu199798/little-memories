@@ -3215,7 +3215,7 @@ class _VibeEmotionSortingPageState extends State<VibeEmotionSortingPage> {
                 children: [
                   Icon(Icons.auto_awesome_rounded, color: _moodColor(photo.mood, context)),
                   const SizedBox(width: 8),
-                  Expanded(child: Text('\${photo.mood} mood', style: const TextStyle(fontWeight: FontWeight.w800))),
+                  Expanded(child: Text('${photo.mood} mood', style: const TextStyle(fontWeight: FontWeight.w800))),
                   TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
                 ],
               ),
@@ -3275,7 +3275,7 @@ class _VibeEmotionSortingPageState extends State<VibeEmotionSortingPage> {
                 children: [
                   LinearProgressIndicator(value: widget.photos.isEmpty ? null : _scanned / widget.photos.length),
                   const SizedBox(height: 6),
-                  Text('Reading thumbnails: $_scanned of \${widget.photos.length}'),
+                  Text('Reading thumbnails: $_scanned of ${widget.photos.length}'),
                 ],
               ),
             ),
