@@ -26,6 +26,10 @@ class _CinematicViewerState extends State<CinematicViewer> {
   late final PageController _controller;
   late int _index;
   bool _controls = true;
+  final Map<String, Future<File?>> _fileFutures = <String, Future<File?>>{};
+
+  Future<File?> _fileFor(AssetEntity asset) =>
+      _fileFutures.putIfAbsent(asset.id, () => asset.file);
 
   AssetEntity get _current => widget.all[_index];
 
@@ -160,7 +164,7 @@ class _CinematicViewerState extends State<CinematicViewer> {
 
   Widget _photo(AssetEntity asset) {
     return FutureBuilder<File?>(
-      future: asset.file,
+      future: _fileFor(asset),
       builder: (_, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator(color: Colors.white));
