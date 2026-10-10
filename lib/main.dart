@@ -3319,15 +3319,27 @@ class _VibeEmotionSortingPageState extends State<VibeEmotionSortingPage> {
                             Expanded(
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
-                                child: AssetEntityImage(
-                                  photo.asset,
-                                  isOriginal: false,
-                                  thumbnailSize: const ThumbnailSize(240, 240),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
-                                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                                    child: const Icon(Icons.broken_image_outlined),
+                                child: FutureBuilder<Uint8List?>(
+                                  future: photo.asset.thumbnailDataWithSize(
+                                    const ThumbnailSize(240, 240),
                                   ),
+                                  builder: (context, snapshot) {
+                                    final bytes = snapshot.data;
+                                    if (bytes == null || bytes.isEmpty) {
+                                      return Container(
+                                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                        child: const Icon(Icons.photo_outlined),
+                                      );
+                                    }
+                                    return Image.memory(
+                                      bytes,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Container(
+                                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                        child: const Icon(Icons.broken_image_outlined),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                             ),
