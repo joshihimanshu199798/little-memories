@@ -3126,7 +3126,7 @@ class _VibeEmotionSortingPageState extends State<VibeEmotionSortingPage> {
         final luminance = (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
         luminanceTotal += luminance;
         luminanceSquaredTotal += luminance * luminance;
-        saturationTotal += maximum <= 0 ? 0 : (maximum - minimum) / maximum;
+        saturationTotal += maximum <= 0 ? 0.0 : (maximum - minimum) / maximum;
         warmthTotal += r - b;
         count++;
       }
