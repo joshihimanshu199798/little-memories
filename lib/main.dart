@@ -584,19 +584,80 @@ class _HomeState extends State<Home> {
   }
 
   Future<void> _smartDuplicateScan() async {
-    final groups = <String, List<AssetEntity>>{};
-    for (final a in photos) {
-      final key = a.createDateTime.year.toString() + '-' + a.createDateTime.month.toString() + '-' + a.createDateTime.day.toString() + '-' + (a.title ?? '').toLowerCase();
-      groups.putIfAbsent(key, () => []).add(a);
+    if (photos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No photos are available to scan.')),
+      );
+      return;
     }
-    final duplicates = groups.values.where((g) => g.length > 1).toList();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Scanning file sizes and verifying exact duplicate content…'),
+        duration: Duration(seconds: 4),
+      ),
+    );
+
+    // File size is a cheap first pass: only files with equal lengths need hashing.
+    final bySize = <int, List<AssetEntity>>{};
+    var unavailable = 0;
+    for (final asset in photos) {
+      try {
+        final file = await asset.file;
+        if (file == null || !await file.exists()) {
+          unavailable++;
+          continue;
+        }
+        final size = await file.length();
+        bySize.putIfAbsent(size, () => <AssetEntity>[]).add(asset);
+      } catch (_) {
+        unavailable++;
+      }
+    }
+
+    // SHA-256 is streamed from disk, so full photo/video files are not loaded into memory.
+    final groups = <String, List<AssetEntity>>{};
+    for (final entry in bySize.entries) {
+      if (entry.value.length < 2) continue;
+      for (final asset in entry.value) {
+        try {
+          final file = await asset.file;
+          if (file == null || !await file.exists()) continue;
+          final digest = await sha256.bind(file.openRead()).first;
+          final key = '${entry.key}:$digest';
+          groups.putIfAbsent(key, () => <AssetEntity>[]).add(asset);
+        } catch (_) {
+          unavailable++;
+        }
+      }
+    }
+
+    final duplicates = groups.values.where((group) => group.length > 1).toList();
+    final duplicateCopies =
+        duplicates.fold<int>(0, (total, group) => total + group.length - 1);
     if (!mounted) return;
-    final count = duplicates.fold<int>(0, (n, g) => n + g.length - 1);
-    await showDialog(context: context, builder: (_) => AlertDialog(
-      title: const Text('Duplicate scan'),
-      content: duplicates.isEmpty ? const Text('No likely duplicates found. Nothing is deleted automatically.') : Text(count.toString() + ' likely duplicate copies found across ' + duplicates.length.toString() + ' groups. Review them before deleting anything.'),
-      actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Done'))],
-    ));
+
+    final summary = duplicates.isEmpty
+        ? 'No exact duplicate files were found. Nothing was changed or deleted.'
+        : '$duplicateCopies exact duplicate cop${duplicateCopies == 1 ? 'y' : 'ies'} found across '
+            '${duplicates.length} groups. These files have matching sizes and SHA-256 content. '
+            'Review them in your gallery before deleting anything.';
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Exact duplicate scan'),
+        content: Text(
+          '$summary\n\nFiles checked: ${photos.length - unavailable} of ${photos.length}'
+          '${unavailable == 0 ? '' : '\nFiles unavailable: $unavailable'}',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _memoryStatistics() async {
