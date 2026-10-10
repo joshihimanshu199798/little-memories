@@ -1807,6 +1807,7 @@ class _HomeState extends State<Home> {
             const ListTile(title: Text('Create your next memory collection', style: TextStyle(fontWeight: FontWeight.w900))),
             ListTile(leading: const Icon(Icons.checklist_rounded), title: const Text('Select photos'), onTap: () { Navigator.pop(context); setState(() => selectionMode = true); }),
             ListTile(leading: const Icon(Icons.insights_rounded), title: const Text('Memory statistics'), onTap: () { Navigator.pop(context); _memoryStatistics(); }),
+            ListTile(leading: const Icon(Icons.palette_outlined), title: const Text('Color Palette Search'), subtitle: const Text('Find photos with a similar color mood'), onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => ColorPaletteSearchPage(photos: photos))); }),
             ListTile(leading: const Icon(Icons.content_copy_rounded), title: const Text('Find likely duplicates'), onTap: () { Navigator.pop(context); _smartDuplicateScan(); }),
             ListTile(leading: const Icon(Icons.lock_outline_rounded), title: const Text('Private / Hidden memories'), onTap: () { Navigator.pop(context); _showHiddenMemories(); }),
             ListTile(leading: const Icon(Icons.slideshow_rounded), title: const Text('Play memory slideshow'), onTap: () { Navigator.pop(context); _startSlideshow(); }),
@@ -2836,6 +2837,223 @@ class _ThumbState extends State<Thumb> {
       );
     },
   );
+}
+
+class ColorPaletteSearchPage extends StatefulWidget {
+  final List<AssetEntity> photos;
+  const ColorPaletteSearchPage({super.key, required this.photos});
+
+  @override
+  State<ColorPaletteSearchPage> createState() => _ColorPaletteSearchPageState();
+}
+
+class _ColorPaletteSearchPageState extends State<ColorPaletteSearchPage> {
+  AssetEntity? reference;
+  List<Color> referencePalette = [];
+  List<MapEntry<AssetEntity, double>> matches = [];
+  bool busy = false;
+  int scanned = 0;
+
+  Future<List<Color>> _paletteFor(AssetEntity asset) async {
+    final bytes = await asset.thumbnailDataWithSize(const ThumbnailSize(112, 112));
+    if (bytes == null) return [];
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return [];
+    final counts = <int, int>{};
+    for (var y = 0; y < decoded.height; y += 3) {
+      for (var x = 0; x < decoded.width; x += 3) {
+        final p = decoded.getPixel(x, y);
+        final key = ((p.r.toInt() >> 4) << 8) |
+            ((p.g.toInt() >> 4) << 4) |
+            (p.b.toInt() >> 4);
+        counts[key] = (counts[key] ?? 0) + 1;
+      }
+    }
+    final keys = counts.keys.toList()
+      ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
+    return keys.take(3).map((key) => Color.fromARGB(
+      255,
+      ((key >> 8) & 15) * 17,
+      ((key >> 4) & 15) * 17,
+      (key & 15) * 17,
+    )).toList();
+  }
+
+  double _colorDistance(Color a, Color b) {
+    final dr = a.red - b.red;
+    final dg = a.green - b.green;
+    final db = a.blue - b.blue;
+    return math.sqrt((dr * dr + dg * dg + db * db).toDouble()) / 441.7;
+  }
+
+  double _paletteDistance(List<Color> a, List<Color> b) {
+    if (a.isEmpty || b.isEmpty) return 1;
+    double nearestTotal = 0;
+    for (final color in a) {
+      var nearest = 1.0;
+      for (final candidate in b) {
+        nearest = math.min(nearest, _colorDistance(color, candidate));
+      }
+      nearestTotal += nearest;
+    }
+    return nearestTotal / a.length;
+  }
+
+  String _hex(Color color) =>
+      '#' + color.red.toRadixString(16).padLeft(2, '0') +
+      color.green.toRadixString(16).padLeft(2, '0') +
+      color.blue.toRadixString(16).padLeft(2, '0').toUpperCase();
+
+  Future<void> _chooseReference(AssetEntity asset) async {
+    if (busy) return;
+    setState(() {
+      reference = asset;
+      referencePalette = [];
+      matches = [];
+      busy = true;
+      scanned = 0;
+    });
+    try {
+      final palette = await _paletteFor(asset);
+      if (!mounted) return;
+      setState(() => referencePalette = palette);
+      final scored = <MapEntry<AssetEntity, double>>[];
+      for (final photo in widget.photos) {
+        if (!mounted) return;
+        try {
+          final candidate = await _paletteFor(photo);
+          if (candidate.isNotEmpty) {
+            scored.add(MapEntry(photo, _paletteDistance(palette, candidate)));
+          }
+        } catch (_) {
+          // Ignore photos whose thumbnails cannot be read.
+        }
+        scanned++;
+        if (scanned % 12 == 0 && mounted) {
+          setState(() => matches = List.of(scored)..sort((a, b) => a.value.compareTo(b.value)));
+        }
+      }
+      scored.sort((a, b) => a.value.compareTo(b.value));
+      if (mounted) setState(() => matches = scored);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = referencePalette;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Color Palette Search'),
+        actions: [
+          if (reference != null)
+            IconButton(
+              tooltip: 'Choose another reference',
+              onPressed: busy ? null : () => setState(() {
+                reference = null;
+                referencePalette = [];
+                matches = [];
+                scanned = 0;
+              }),
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+        ],
+      ),
+      body: widget.photos.isEmpty
+          ? const Center(child: Text('No photos are available to search.'))
+          : reference == null
+              ? Column(
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('Choose a photo to find others with a similar color palette. Processing stays on this device.',
+                        textAlign: TextAlign.center),
+                    ),
+                    Expanded(
+                      child: GridView.builder(
+                        padding: const EdgeInsets.all(8),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3, crossAxisSpacing: 6, mainAxisSpacing: 6),
+                        itemCount: widget.photos.length,
+                        itemBuilder: (_, index) => GestureDetector(
+                          onTap: () => _chooseReference(widget.photos[index]),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Thumb(widget.photos[index]),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  children: [
+                    if (busy) LinearProgressIndicator(value: widget.photos.isEmpty ? null : scanned / widget.photos.length),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                      child: Row(
+                        children: [
+                          SizedBox(width: 76, height: 76, child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Thumb(reference!),
+                          )),
+                          const SizedBox(width: 12),
+                          Expanded(child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(busy ? 'Comparing color palettes…' : matches.length.toString() + ' similar photos',
+                                style: const TextStyle(fontWeight: FontWeight.w800)),
+                              const SizedBox(height: 8),
+                              Wrap(spacing: 6, runSpacing: 6, children: palette.map((color) =>
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Theme.of(context).dividerColor),
+                                  ),
+                                  child: Text(_hex(color), style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: color.computeLuminance() > .45 ? Colors.black : Colors.white,
+                                  )),
+                                )).toList()),
+                            ],
+                          )),
+                        ],
+                      ),
+                    ),
+                    if (!busy && matches.isEmpty)
+                      const Padding(padding: EdgeInsets.all(20), child: Text('No comparable photo palettes were found.')),
+                    Expanded(
+                      child: GridView.builder(
+                        padding: const EdgeInsets.all(8),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3, crossAxisSpacing: 6, mainAxisSpacing: 6),
+                        itemCount: matches.length,
+                        itemBuilder: (_, index) {
+                          final entry = matches[index];
+                          return Stack(fit: StackFit.expand, children: [
+                            ClipRRect(borderRadius: BorderRadius.circular(12), child: Thumb(entry.key)),
+                            Positioned(left: 4, right: 4, bottom: 4, child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: .62),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(((1 - entry.value) * 100).round().toString() + '% palette match',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                            )),
+                          ]);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+    );
+  }
 }
 
 class DuplicatePhotosPage extends StatefulWidget {
