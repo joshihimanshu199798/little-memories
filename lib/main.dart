@@ -1809,6 +1809,7 @@ class _HomeState extends State<Home> {
             ListTile(leading: const Icon(Icons.checklist_rounded), title: const Text('Select photos'), onTap: () { Navigator.pop(context); setState(() => selectionMode = true); }),
             ListTile(leading: const Icon(Icons.insights_rounded), title: const Text('Memory statistics'), onTap: () { Navigator.pop(context); _memoryStatistics(); }),
             ListTile(leading: const Icon(Icons.palette_outlined), title: const Text('Color Palette Search'), subtitle: Text(backgroundSyncing ? 'Finishing photo indexing…' : 'Find photos with a similar color mood'), onTap: () { if (backgroundSyncing) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please wait until photo indexing finishes, then open Color Palette Search.'))); return; } Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => ColorPaletteSearchPage(photos: photos.where((photo) => !hiddenIds.contains(photo.id)).toList()))); }),
+            ListTile(leading: const Icon(Icons.auto_awesome_rounded), title: const Text('Vibe & Emotion Sorting'), subtitle: Text(backgroundSyncing ? 'Finishing photo indexing…' : 'Sort memories by visual mood, offline'), onTap: () { if (backgroundSyncing) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please wait until photo indexing finishes, then open Vibe & Emotion Sorting.'))); return; } Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => VibeEmotionSortingPage(photos: photos.where((photo) => !hiddenIds.contains(photo.id)).toList()))); }),
             ListTile(leading: const Icon(Icons.content_copy_rounded), title: const Text('Find likely duplicates'), onTap: () { Navigator.pop(context); _smartDuplicateScan(); }),
             ListTile(leading: const Icon(Icons.lock_outline_rounded), title: const Text('Private / Hidden memories'), onTap: () { Navigator.pop(context); _showHiddenMemories(); }),
             ListTile(leading: const Icon(Icons.slideshow_rounded), title: const Text('Play memory slideshow'), onTap: () { Navigator.pop(context); _startSlideshow(); }),
@@ -3056,6 +3057,314 @@ class _ColorPaletteSearchPageState extends State<ColorPaletteSearchPage> {
     );
   }
 }
+
+class _MoodPhoto {
+  final AssetEntity asset;
+  final String mood;
+  final double brightness;
+  final double saturation;
+  final double warmth;
+  const _MoodPhoto({
+    required this.asset,
+    required this.mood,
+    required this.brightness,
+    required this.saturation,
+    required this.warmth,
+  });
+}
+
+class VibeEmotionSortingPage extends StatefulWidget {
+  final List<AssetEntity> photos;
+  const VibeEmotionSortingPage({super.key, required this.photos});
+
+  @override
+  State<VibeEmotionSortingPage> createState() => _VibeEmotionSortingPageState();
+}
+
+class _VibeEmotionSortingPageState extends State<VibeEmotionSortingPage> {
+  static const _moods = <String>['All', 'Cozy', 'Nostalgic', 'Energetic', 'Calm'];
+  String selectedMood = 'All';
+  final List<_MoodPhoto> _classified = [];
+  bool _scanning = true;
+  int _scanned = 0;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _scanPhotos();
+  }
+
+  String _classify(double brightness, double saturation, double warmth, double contrast) {
+    if (saturation >= 0.40 && contrast >= 0.12) return 'Energetic';
+    if (warmth >= 0.045 && brightness < 0.78) return 'Cozy';
+    if (saturation < 0.24 && contrast < 0.19) return 'Nostalgic';
+    if (brightness >= 0.58 && saturation < 0.43) return 'Calm';
+    if (warmth > 0.015) return 'Cozy';
+    return brightness >= 0.50 ? 'Calm' : 'Nostalgic';
+  }
+
+  Future<_MoodPhoto?> _analyse(AssetEntity asset) async {
+    final bytes = await asset.thumbnailDataWithSize(const ThumbnailSize(80, 80));
+    if (bytes == null) return null;
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null || decoded.width == 0 || decoded.height == 0) return null;
+
+    var count = 0;
+    var luminanceTotal = 0.0;
+    var luminanceSquaredTotal = 0.0;
+    var saturationTotal = 0.0;
+    var warmthTotal = 0.0;
+    for (var y = 0; y < decoded.height; y += 3) {
+      for (var x = 0; x < decoded.width; x += 3) {
+        final pixel = decoded.getPixel(x, y);
+        final r = pixel.r.toDouble() / 255.0;
+        final g = pixel.g.toDouble() / 255.0;
+        final b = pixel.b.toDouble() / 255.0;
+        final maximum = math.max(r, math.max(g, b));
+        final minimum = math.min(r, math.min(g, b));
+        final luminance = (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+        luminanceTotal += luminance;
+        luminanceSquaredTotal += luminance * luminance;
+        saturationTotal += maximum <= 0 ? 0 : (maximum - minimum) / maximum;
+        warmthTotal += r - b;
+        count++;
+      }
+    }
+    if (count == 0) return null;
+    final brightness = luminanceTotal / count;
+    final saturation = saturationTotal / count;
+    final warmth = warmthTotal / count;
+    final variance = math.max(0.0, (luminanceSquaredTotal / count) - (brightness * brightness));
+    final contrast = math.sqrt(variance);
+    return _MoodPhoto(
+      asset: asset,
+      mood: _classify(brightness, saturation, warmth, contrast),
+      brightness: brightness,
+      saturation: saturation,
+      warmth: warmth,
+    );
+  }
+
+  Future<void> _scanPhotos() async {
+    if (widget.photos.isEmpty) {
+      if (mounted) setState(() => _scanning = false);
+      return;
+    }
+    try {
+      for (final asset in widget.photos) {
+        if (!mounted) return;
+        try {
+          final result = await _analyse(asset);
+          if (result != null) _classified.add(result);
+        } catch (_) {
+          // A missing or unreadable thumbnail should not stop the remaining scan.
+        }
+        _scanned++;
+        if (_scanned % 8 == 0 && mounted) setState(() {});
+      }
+    } catch (_) {
+      _error = 'Some photos could not be analysed. You can still browse the photos that were sorted.';
+    } finally {
+      if (mounted) setState(() => _scanning = false);
+    }
+  }
+
+  List<_MoodPhoto> get _visiblePhotos {
+    final result = _classified.where((photo) =>
+        selectedMood == 'All' || photo.mood == selectedMood).toList();
+    if (selectedMood == 'Energetic') {
+      result.sort((a, b) => b.saturation.compareTo(a.saturation));
+    } else if (selectedMood == 'Cozy') {
+      result.sort((a, b) => b.warmth.compareTo(a.warmth));
+    } else if (selectedMood == 'Calm') {
+      result.sort((a, b) => b.brightness.compareTo(a.brightness));
+    } else if (selectedMood == 'Nostalgic') {
+      result.sort((a, b) => a.saturation.compareTo(b.saturation));
+    }
+    return result;
+  }
+
+  Color _moodColor(String mood, BuildContext context) {
+    switch (mood) {
+      case 'Cozy': return const Color(0xFFB86F45);
+      case 'Nostalgic': return const Color(0xFF8877A8);
+      case 'Energetic': return const Color(0xFFE35D6A);
+      case 'Calm': return const Color(0xFF4E9D91);
+      default: return Theme.of(context).colorScheme.primary;
+    }
+  }
+
+  Future<void> _preview(_MoodPhoto photo) async {
+    final bytes = await photo.asset.thumbnailDataWithSize(const ThumbnailSize(720, 720));
+    if (!mounted || bytes == null) return;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Image.memory(bytes, fit: BoxFit.contain),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(Icons.auto_awesome_rounded, color: _moodColor(photo.mood, context)),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('\${photo.mood} mood', style: const TextStyle(fontWeight: FontWeight.w800))),
+                  TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
+                ],
+              ),
+              const Text('Mood is estimated on-device from image colors and contrast. It is a visual suggestion, not an analysis of the people or events in the photo.'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = _visiblePhotos;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Vibe & Emotion Sorting'),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text(
+              'Discover the visual feel of your memories. Analysis runs locally on photo thumbnails.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+          SizedBox(
+            height: 52,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              scrollDirection: Axis.horizontal,
+              children: _moods.map((mood) {
+                final count = mood == 'All'
+                    ? _classified.length
+                    : _classified.where((photo) => photo.mood == mood).length;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: ChoiceChip(
+                    label: Text('$mood ($count)'),
+                    selected: selectedMood == mood,
+                    onSelected: (_) => setState(() => selectedMood = mood),
+                    avatar: mood == 'All' ? null : CircleAvatar(
+                      backgroundColor: _moodColor(mood, context),
+                      radius: 6,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          if (_scanning)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LinearProgressIndicator(value: widget.photos.isEmpty ? null : _scanned / widget.photos.length),
+                  const SizedBox(height: 6),
+                  Text('Reading thumbnails: $_scanned of \${widget.photos.length}'),
+                ],
+              ),
+            ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ),
+          Expanded(
+            child: visible.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        _scanning
+                            ? 'Sorting your memories…'
+                            : widget.photos.isEmpty
+                                ? 'No visible photos are available.'
+                                : 'No photos matched this mood yet.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                : GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: 0.76,
+                    ),
+                    itemCount: visible.length,
+                    itemBuilder: (context, index) {
+                      final photo = visible[index];
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => _preview(photo),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: AssetEntityImage(
+                                  photo.asset,
+                                  isOriginal: false,
+                                  thumbnailSize: const ThumbnailSize(240, 240),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                    child: const Icon(Icons.broken_image_outlined),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Row(
+                              children: [
+                                Container(
+                                  width: 7,
+                                  height: 7,
+                                  decoration: BoxDecoration(
+                                    color: _moodColor(photo.mood, context),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    photo.mood,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 class DuplicatePhotosPage extends StatefulWidget {
   final List<AssetEntity> photos; const DuplicatePhotosPage({super.key,required this.photos});
