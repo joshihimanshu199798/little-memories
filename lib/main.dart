@@ -2900,9 +2900,9 @@ class _ColorPaletteSearchPageState extends State<ColorPaletteSearchPage> {
   }
 
   String _hex(Color color) =>
-      '#' + color.red.toRadixString(16).padLeft(2, '0') +
+      ('#' + color.red.toRadixString(16).padLeft(2, '0') +
       color.green.toRadixString(16).padLeft(2, '0') +
-      color.blue.toRadixString(16).padLeft(2, '0').toUpperCase();
+      color.blue.toRadixString(16).padLeft(2, '0')).toUpperCase();
 
   Future<void> _chooseReference(AssetEntity asset) async {
     if (busy) return;
