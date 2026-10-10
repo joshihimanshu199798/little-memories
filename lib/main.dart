@@ -2853,14 +2853,165 @@ class _DuplicatePhotosPageState extends State<DuplicatePhotosPage>{
 }
 
 class BlurryPhotosPage extends StatefulWidget {
-  final List<AssetEntity> photos; const BlurryPhotosPage({super.key,required this.photos});
-  @override State<BlurryPhotosPage> createState()=>_BlurryPhotosPageState();
+  final List<AssetEntity> photos;
+  const BlurryPhotosPage({super.key, required this.photos});
+  @override State<BlurryPhotosPage> createState() => _BlurryPhotosPageState();
 }
-class _BlurryPhotosPageState extends State<BlurryPhotosPage>{
-  bool scanning=true; List<AssetEntity> blurry=[];
-  @override void initState(){super.initState();_scan();}
-  Future<void> _scan() async {final out=<AssetEntity>[];for(final a in widget.photos){try{final bytes=await a.thumbnailDataWithSize(const ThumbnailSize(160,160));if(bytes==null)continue;final decoded=img.decodeImage(bytes);if(decoded==null)continue;double total=0,sq=0;int n=0;for(int y=1;y<decoded.height-1;y+=2){for(int x=1;x<decoded.width-1;x+=2){final c=decoded.getPixel(x,y);final lum=.299*c.r+.587*c.g+.114*c.b;final r=decoded.getPixel(x+1,y);final rr=.299*r.r+.587*r.g+.114*r.b;final d=decoded.getPixel(x,y+1);final dd=.299*d.r+.587*d.g+.114*d.b;final edge=(lum-rr).abs()+(lum-dd).abs();total+=edge;sq+=edge*edge;n++;}}if(n>0){final avg=total/n;final variance=(sq/n)-(avg*avg);if(avg<11.5&&variance<70)out.add(a);}}catch(_){}if(mounted)setState(()=>blurry=List.of(out));}if(mounted)setState(()=>scanning=false);}
-  @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Blurry Photos')),body:scanning?const Center(child:Column(mainAxisSize:MainAxisSize.min,children:[CircularProgressIndicator(),SizedBox(height:14),Text('Analyzing photo sharpness on device…')])):blurry.isEmpty?const Center(child:Text('No likely blurry photos found.')):GridView.builder(padding:const EdgeInsets.all(10),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:3,crossAxisSpacing:6,mainAxisSpacing:6),itemCount:blurry.length,itemBuilder:(_,i)=>Stack(fit:StackFit.expand,children:[ClipRRect(borderRadius:BorderRadius.circular(14),child:Thumb(blurry[i])),const Positioned(left:6,top:6,child:Chip(label:Text('Blurry')))])));
+class _BlurryPhotosPageState extends State<BlurryPhotosPage> {
+  bool scanning = true;
+  bool cancelRequested = false;
+  int scanned = 0;
+  List<AssetEntity> blurry = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _scan();
+  }
+
+  Future<void> _scan() async {
+    final out = <AssetEntity>[];
+    final total = widget.photos.length;
+    for (var index = 0; index < total; index++) {
+      if (cancelRequested) break;
+      final asset = widget.photos[index];
+      try {
+        final bytes = await asset.thumbnailDataWithSize(const ThumbnailSize(160, 160));
+        if (bytes != null) {
+          final decoded = img.decodeImage(bytes);
+          if (decoded != null) {
+            double totalEdge = 0, squaredEdge = 0;
+            var samples = 0;
+            for (var y = 1; y < decoded.height - 1; y += 2) {
+              for (var x = 1; x < decoded.width - 1; x += 2) {
+                final pixel = decoded.getPixel(x, y);
+                final luminance = .299 * pixel.r + .587 * pixel.g + .114 * pixel.b;
+                final right = decoded.getPixel(x + 1, y);
+                final rightLuminance = .299 * right.r + .587 * right.g + .114 * right.b;
+                final below = decoded.getPixel(x, y + 1);
+                final belowLuminance = .299 * below.r + .587 * below.g + .114 * below.b;
+                final edge = (luminance - rightLuminance).abs() + (luminance - belowLuminance).abs();
+                totalEdge += edge;
+                squaredEdge += edge * edge;
+                samples++;
+              }
+            }
+            if (samples > 0) {
+              final average = totalEdge / samples;
+              final variance = (squaredEdge / samples) - (average * average);
+              if (average < 11.5 && variance < 70) out.add(asset);
+            }
+          }
+        }
+      } catch (_) {
+        // Skip unreadable thumbnails and continue.
+      }
+      scanned = index + 1;
+      if (mounted && (scanned % 8 == 0 || scanned == total)) {
+        setState(() => blurry = List<AssetEntity>.of(out));
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      blurry = List<AssetEntity>.of(out);
+      scanning = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = widget.photos.length;
+    final progress = total == 0 ? 0.0 : (scanned / total).clamp(0.0, 1.0).toDouble();
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Blurry Photos'),
+        actions: [
+          if (scanning)
+            IconButton(
+              tooltip: cancelRequested ? 'Stopping scan' : 'Stop scan',
+              onPressed: cancelRequested ? null : () => setState(() => cancelRequested = true),
+              icon: const Icon(Icons.stop_circle_outlined),
+            ),
+        ],
+      ),
+      body: scanning
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text('Analyzing photo sharpness on device…', textAlign: TextAlign.center),
+                    const SizedBox(height: 18),
+                    LinearProgressIndicator(value: progress),
+                    const SizedBox(height: 10),
+                    Text('$scanned of $total photos checked', textAlign: TextAlign.center),
+                    if (blurry.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text('${blurry.length} likely blurry so far', textAlign: TextAlign.center),
+                    ],
+                    if (cancelRequested) ...[
+                      const SizedBox(height: 8),
+                      const Text('Stopping after the current photo…', textAlign: TextAlign.center),
+                    ],
+                  ],
+                ),
+              ),
+            )
+          : blurry.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      total == 0
+                          ? 'No photos to scan.'
+                          : cancelRequested
+                              ? 'Scan stopped after $scanned of $total photos. No likely blurry photos found so far.'
+                              : 'No likely blurry photos found in $scanned photos.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                )
+              : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          cancelRequested
+                              ? 'Scan stopped • $scanned of $total photos checked • ${blurry.length} likely blurry'
+                              : 'Scanned $scanned photos • ${blurry.length} likely blurry',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: GridView.builder(
+                        padding: const EdgeInsets.all(10),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 6,
+                          mainAxisSpacing: 6,
+                        ),
+                        itemCount: blurry.length,
+                        itemBuilder: (_, index) => Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: Thumb(blurry[index]),
+                            ),
+                            const Positioned(left: 6, top: 6, child: Chip(label: Text('Blurry'))),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+    );
+  }
 }
 
 class TimelinePage extends StatefulWidget {
