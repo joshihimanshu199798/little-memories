@@ -1,6 +1,6 @@
+import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:cross_file/cross_file.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image/image.dart' as img;
@@ -63,59 +63,75 @@ class _AutoAnonymizerPageState extends State<AutoAnonymizerPage> {
         throw StateError('This photo is larger than the 40 MB safety limit.');
       }
 
-      final detector = FaceDetector(
-        options: FaceDetectorOptions(
-          performanceMode: FaceDetectorMode.accurate,
-          enableLandmarks: false,
-          enableContours: false,
-          enableClassification: false,
-          enableTracking: false,
-          minFaceSize: 0.08,
-        ),
-      );
-
-      late final List<Face> faces;
-      try {
-        faces = await detector.processImage(InputImage.fromFilePath(file.path));
-      } finally {
-        await detector.close();
-      }
-
-      if (faces.isEmpty) {
-        if (!mounted) return;
-        setState(() {
-          _noFaces = true;
-          _processing = false;
-        });
-        return;
-      }
-
       final sourceBytes = await file.readAsBytes();
       final decoded = img.decodeImage(sourceBytes);
       if (decoded == null) {
         throw FormatException('The photo format could not be decoded.');
       }
 
-      // Normalize EXIF rotation before applying the detector's image-space boxes.
+      // Apply EXIF orientation before face detection. Detection and masking now
+      // use the same upright pixel coordinate space.
       final upright = img.bakeOrientation(decoded);
-      applyFacePrivacyMasks(
-        upright,
-        faces.map((face) => face.boundingBox).toList(),
-      );
+      final normalizedBytes = img.encodePng(upright);
+      final temporaryDirectory =
+          await Directory.systemTemp.createTemp('little_memories_anonymizer_');
 
-      final originalExtension = file.path.split('.').last.toLowerCase();
-      final saveAsPng = originalExtension == 'png';
-      final encoded = saveAsPng
-          ? img.encodePng(upright)
-          : img.encodeJpg(upright, quality: 95);
+      try {
+        final normalizedFile = File('${temporaryDirectory.path}/normalized.png');
+        await normalizedFile.writeAsBytes(normalizedBytes, flush: true);
 
-      if (!mounted) return;
-      setState(() {
-        _maskedBytes = Uint8List.fromList(encoded);
-        _faceCount = faces.length;
-        _outputExtension = saveAsPng ? 'png' : 'jpg';
-        _processing = false;
-      });
+        final detector = FaceDetector(
+          options: FaceDetectorOptions(
+            performanceMode: FaceDetectorMode.accurate,
+            enableLandmarks: false,
+            enableContours: false,
+            enableClassification: false,
+            enableTracking: false,
+            minFaceSize: 0.08,
+          ),
+        );
+
+        late final List<Face> faces;
+        try {
+          faces = await detector.processImage(
+            InputImage.fromFilePath(normalizedFile.path),
+          );
+        } finally {
+          await detector.close();
+        }
+
+        if (faces.isEmpty) {
+          if (!mounted) return;
+          setState(() {
+            _noFaces = true;
+            _processing = false;
+          });
+          return;
+        }
+
+        applyFacePrivacyMasks(
+          upright,
+          faces.map((face) => face.boundingBox).toList(),
+        );
+
+        final originalExtension = file.path.split('.').last.toLowerCase();
+        final saveAsPng = originalExtension == 'png';
+        final encoded = saveAsPng
+            ? img.encodePng(upright)
+            : img.encodeJpg(upright, quality: 95);
+
+        if (!mounted) return;
+        setState(() {
+          _maskedBytes = Uint8List.fromList(encoded);
+          _faceCount = faces.length;
+          _outputExtension = saveAsPng ? 'png' : 'jpg';
+          _processing = false;
+        });
+      } finally {
+        if (await temporaryDirectory.exists()) {
+          await temporaryDirectory.delete(recursive: true);
+        }
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -139,9 +155,6 @@ class _AutoAnonymizerPageState extends State<AutoAnonymizerPage> {
       title: 'Face-masked copy',
       relativePath: 'Pictures/Little Memories',
     );
-    if (saved == null) {
-      throw StateError('The phone gallery did not confirm the save.');
-    }
 
     final onSaved = widget.onSaved;
     if (onSaved != null) {
@@ -168,7 +181,9 @@ class _AutoAnonymizerPageState extends State<AutoAnonymizerPage> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not save the masked copy. The original is unchanged.')),
+          const SnackBar(
+            content: Text('Could not save the masked copy. The original is unchanged.'),
+          ),
         );
       }
     } finally {
@@ -252,7 +267,9 @@ class _AutoAnonymizerPageState extends State<AutoAnonymizerPage> {
                               ? Icons.privacy_tip_rounded
                               : Icons.info_outline_rounded,
                           size: 30,
-                          color: canExport ? colors.primary : colors.onSurfaceVariant,
+                          color: canExport
+                              ? colors.primary
+                              : colors.onSurfaceVariant,
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -263,9 +280,10 @@ class _AutoAnonymizerPageState extends State<AutoAnonymizerPage> {
                                 canExport
                                     ? '$_faceCount ${_faceCount == 1 ? 'face' : 'faces'} detected'
                                     : 'Preview unavailable',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                    ),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w800),
                               ),
                               const SizedBox(height: 4),
                               Text(
