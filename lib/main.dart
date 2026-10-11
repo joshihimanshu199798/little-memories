@@ -661,6 +661,58 @@ class _HomeState extends State<Home> {
     );
   }
 
+
+  Future<void> _openJunkDrawer() async {
+    if (backgroundSyncing) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait until photo indexing finishes, then open Junk Drawer.')),
+      );
+      return;
+    }
+    // Heuristic review only: small dimensions can indicate low-quality copies,
+    // but they are not proof that a memory is unwanted. Never include private
+    // or favorited memories in this convenience list.
+    final candidates = photos.where((photo) {
+      if (hiddenIds.contains(photo.id) || favorites.contains(photo.id)) return false;
+      final shortEdge = math.min(photo.width, photo.height);
+      final pixels = photo.width * photo.height;
+      return shortEdge < 720 || pixels < 500000;
+    }).toList();
+    if (candidates.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No low-resolution review candidates found. Nothing was changed.')),
+      );
+      return;
+    }
+    final deleted = await Navigator.push<Set<String>>(
+      context,
+      MaterialPageRoute(builder: (_) => JunkDrawerPage(photos: candidates)),
+    );
+    if (deleted == null || deleted.isEmpty || !mounted) return;
+    setState(() {
+      photos.removeWhere((photo) => deleted.contains(photo.id));
+      for (final id in deleted) {
+        favorites.remove(id);
+        hiddenIds.remove(id);
+        names.remove(id);
+        captions.remove(id);
+        photoTags.remove(id);
+        memoryAlbums.forEach((_, ids) => ids.remove(id));
+        for (final timeline in timelines) {
+          timeline.assets.remove(id);
+        }
+      }
+    });
+    await _save();
+    await _refreshPhotos();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${deleted.length} photos deleted after your confirmation.')),
+      );
+    }
+  }
+
   Future<void> _memoryStatistics() async {
     final years = <int>{}; final months = <String>{};
     for (final a in photos) {
@@ -2785,6 +2837,203 @@ class _MemoryPatternPainter extends CustomPainter {
     }
   }
   @override bool shouldRepaint(covariant _MemoryPatternPainter old) => old.color!=color || old.style!=style;
+}
+
+
+class JunkDrawerPage extends StatefulWidget {
+  final List<AssetEntity> photos;
+  const JunkDrawerPage({super.key, required this.photos});
+
+  @override
+  State<JunkDrawerPage> createState() => _JunkDrawerPageState();
+}
+
+class _JunkDrawerPageState extends State<JunkDrawerPage> {
+  final Set<String> _selected = <String>{};
+  bool _deleting = false;
+
+  Future<void> _deleteSelected() async {
+    if (_selected.isEmpty || _deleting) return;
+    final count = _selected.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Delete $count selected photos?'),
+        content: const Text(
+          'These photos will be deleted from your phone gallery. '
+          'Small dimensions do not mean a photo is worthless. Review your selection carefully. '
+          'This action may not be undoable from Little Memories.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete selected'),
+          ),
+        ],
+      ),
+    ) ?? false;
+    if (!confirmed || !mounted) return;
+
+    setState(() => _deleting = true);
+    try {
+      final deleted = await PhotoManager.editor.deleteWithIds(_selected.toList());
+      if (!mounted) return;
+      Navigator.pop<Set<String>>(context, deleted.toSet());
+    } catch (error) {
+      if (mounted) {
+        setState(() => _deleting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not delete photos: $error')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Junk Drawer'),
+        actions: [
+          TextButton(
+            onPressed: _deleting || widget.photos.isEmpty
+                ? null
+                : () => setState(() {
+                      if (_selected.length == widget.photos.length) {
+                        _selected.clear();
+                      } else {
+                        _selected
+                          ..clear()
+                          ..addAll(widget.photos.map((photo) => photo.id));
+                      }
+                    }),
+            child: Text(_selected.length == widget.photos.length ? 'Clear all' : 'Select all'),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Text(
+              'Review possible low-resolution photos. This is only a suggestion—not an AI junk verdict. '
+              'Private and favorite photos are excluded, and nothing is deleted until you select photos and confirm.',
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${widget.photos.length} review candidates',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                Text('${_selected.length} selected'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsets.all(12),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+              itemCount: widget.photos.length,
+              itemBuilder: (context, index) {
+                final photo = widget.photos[index];
+                final selected = _selected.contains(photo.id);
+                final shortEdge = math.min(photo.width, photo.height);
+                return Semantics(
+                  button: true,
+                  selected: selected,
+                  label: 'Photo ${index + 1}, ${photo.width} by ${photo.height} pixels',
+                  child: GestureDetector(
+                    onTap: _deleting
+                        ? null
+                        : () => setState(() {
+                              if (selected) {
+                                _selected.remove(photo.id);
+                              } else {
+                                _selected.add(photo.id);
+                              }
+                            }),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Thumb(photo),
+                        ),
+                        Positioned(
+                          left: 5,
+                          right: 5,
+                          bottom: 5,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.65),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${photo.width}×${photo.height}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.white, fontSize: 10),
+                            ),
+                          ),
+                        ),
+                        if (selected)
+                          const Positioned(
+                            right: 6,
+                            top: 6,
+                            child: Icon(Icons.check_circle, color: Colors.white, size: 24),
+                          ),
+                        if (shortEdge < 320)
+                          const Positioned(
+                            left: 6,
+                            top: 6,
+                            child: Icon(Icons.photo_size_select_small, color: Colors.white, size: 18),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _selected.isEmpty || _deleting ? null : _deleteSelected,
+                  icon: _deleting
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.delete_outline_rounded),
+                  label: Text(_deleting ? 'Deleting…' : 'Delete selected (${_selected.length})'),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class Thumb extends StatefulWidget {
