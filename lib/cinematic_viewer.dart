@@ -43,7 +43,7 @@ class _CinematicViewerState extends State<CinematicViewer> {
   }
 
   String _title(AssetEntity a) {
-    final custom = widget.nameFor?.call(a.id)?.trim() ?? '';
+    final custom = widget.nameFor?.call(a.id).trim() ?? '';
     return custom.isEmpty ? (a.title ?? 'Memory') : custom;
   }
 
