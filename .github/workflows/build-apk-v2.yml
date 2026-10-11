@@ -2,11 +2,13 @@ name: Build Little Memories APK
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: little-memories-apk-${{ github.ref }}
@@ -16,11 +18,14 @@ jobs:
   build:
     name: Analyze and build Android APK
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
-      - name: Checkout
+      - name: Checkout exact source commit
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Setup Flutter
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.41.2"
@@ -29,9 +34,6 @@ jobs:
 
       - name: Generate Android project
         run: flutter create --platforms=android --project-name=little_memories .
-
-      - name: Remove generated placeholder test
-        run: rm -f test/widget_test.dart
 
       - name: Configure Android photo permissions
         run: |
@@ -47,32 +49,68 @@ jobs:
           p.write_text(s)
           PY
 
-      - name: Install dependencies
+      - name: Resolve dependencies
         run: flutter pub get
 
-      - name: Verify latest app source
+      - name: Verify source commit
         run: |
           test -s lib/main.dart
-          echo "Building latest lib/main.dart"
-          wc -l lib/main.dart
-          sha256sum lib/main.dart
+          test -s pubspec.yaml
+          echo "Source commit: ${GITHUB_SHA}"
+          sha256sum lib/main.dart pubspec.yaml
 
       - name: Analyze Dart source
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
-      - name: Build APK
+      - name: Run automated tests
+        shell: bash
+        run: |
+          if find test -type f -name '*_test.dart' -print -quit 2>/dev/null | grep -q .; then
+            flutter test --reporter expanded
+          else
+            echo "::error::No Dart tests found. Add meaningful tests before this build can be considered release-ready."
+            exit 1
+          fi
+
+      - name: Build release APK
         run: flutter build apk --release
+
+      - name: Verify APK artifact
+        run: |
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          test -s "$APK"
+          ls -lh "$APK"
+          sha256sum "$APK"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: little-memories-apk-run-${{ github.run_number }}
+          name: little-memories-apk-${{ github.sha }}
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 30
 
+  publish:
+    name: Publish verified main-branch APK
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download APK artifact from this run
+        uses: actions/download-artifact@v4
+        with:
+          name: little-memories-apk-${{ github.sha }}
+          path: dist
+
+      - name: Verify downloaded APK
+        run: |
+          test -s dist/app-release.apk
+          sha256sum dist/app-release.apk
+
       - name: Publish latest APK to GitHub Releases
-        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
@@ -85,6 +123,6 @@ jobs:
             - Source commit: ${{ github.sha }}
             - Trigger: ${{ github.event_name }}
             - Built with Flutter 3.41.2
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: dist/app-release.apk
           overwrite_files: true
           make_latest: true
