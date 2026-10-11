@@ -19,6 +19,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'cinematic_viewer.dart';
+import 'selected_memory_tools.dart';
 
 void main() => runApp(const LittleMemoriesApp());
 
@@ -1943,7 +1944,7 @@ class _HomeState extends State<Home> {
         tooltip: 'Memory tools',
         onPressed: () => showModalBottomSheet(
           context: context,
-          builder: (_) => SafeArea(child: Wrap(children: [
+          builder: (_) => SafeArea(child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
             const ListTile(title: Text('Create your next memory collection', style: TextStyle(fontWeight: FontWeight.w900))),
             ListTile(leading: const Icon(Icons.checklist_rounded), title: const Text('Select photos'), onTap: () { Navigator.pop(context); setState(() => selectionMode = true); }),
             ListTile(leading: const Icon(Icons.insights_rounded), title: const Text('Memory statistics'), onTap: () { Navigator.pop(context); _memoryStatistics(); }),
@@ -1955,8 +1956,14 @@ class _HomeState extends State<Home> {
             ListTile(leading: const Icon(Icons.lock_outline_rounded), title: const Text('Private / Hidden memories'), onTap: () { Navigator.pop(context); _showHiddenMemories(); }),
             ListTile(leading: const Icon(Icons.slideshow_rounded), title: const Text('Play memory slideshow'), onTap: () { Navigator.pop(context); _startSlideshow(); }),
             ListTile(leading: const Icon(Icons.auto_awesome_rounded), title: const Text('Ultimate Memory Center'), subtitle: const Text('Albums • milestones • storage • export • family tools'), onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => UltimateMemoryCenter(photos: photos, favorites: favorites, timelines: timelines, names: names, captions: captions, hiddenIds: hiddenIds))); }),
+            ListTile(leading: const Icon(Icons.manage_search_rounded), title: const Text('Natural-Language Search'), subtitle: const Text('Search local names, captions, tags and dates'), onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => NaturalLanguageSearchPage(photos: photos.where((a) => !hiddenIds.contains(a.id)).toList(), names: names, captions: captions, tags: photoTags, favorites: favorites))); }),
+            ListTile(leading: const Icon(Icons.view_in_ar_rounded), title: const Text('3D Memory Cards'), subtitle: const Text('Tilt and browse photo cards'), onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => ThreeDMemoryCardsPage(photos: photos.where((a) => !hiddenIds.contains(a.id)).toList(), names: names, captions: captions))); }),
+            ListTile(leading: const Icon(Icons.screenshot_monitor_rounded), title: const Text('Screenshot Intelligence'), subtitle: const Text('Review local filename and size-based suggestions; no OCR'), onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => ScreenshotIntelligencePage(photos: photos.where((a) => !hiddenIds.contains(a.id)).toList()))); }),
+            ListTile(leading: const Icon(Icons.privacy_tip_outlined), title: const Text('Privacy & Metadata Inspector'), subtitle: const Text('Inspect photo details and export a cleaned copy'), onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => MetadataInspectorPage(photos: photos.where((a) => !hiddenIds.contains(a.id)).toList()))); }),
+            ListTile(leading: const Icon(Icons.storage_rounded), title: const Text('Storage Health Center'), subtitle: const Text('Estimate media sizes and review the largest files'), onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => StorageHealthPage(photos: photos.where((a) => !hiddenIds.contains(a.id)).toList(), videos: videos.where((a) => !hiddenIds.contains(a.id)).toList()))); }),
+            ListTile(leading: const Icon(Icons.groups_rounded), title: const Text('Collaborative Memory Wall'), subtitle: const Text('Sharing requires a secure backend; not active yet'), onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const CollaborativeMemoryWallPage())); }),
             ListTile(leading: const Icon(Icons.share_rounded), title: const Text('Share memory collection'), onTap: () { Navigator.pop(context); _shareMemoryCollection(); }),
-          ])),
+          ]))),
         ),
         child: const Icon(Icons.add_rounded),
       ) : null,
