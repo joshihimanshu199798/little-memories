@@ -3966,7 +3966,7 @@ class _TimelinePageState extends State<TimelinePage> {
     final cover = widget.t.coverId == null ? (list.isEmpty ? null : list.first) : widget.find(widget.t.coverId!);
     DateTime? first, last;
     if (list.isNotEmpty) { first = list.first.createDateTime; last = list.last.createDateTime; }
-    final range = first == null ? 'No memories yet' : first.year == last!.year && first.month == last!.month && first.day == last.day ? _date(first) : '${_date(first)} – ${_date(last)}';
+    final range = first == null ? 'No memories yet' : first.year == last.year && first.month == last.month && first.day == last.day ? _date(first) : '${_date(first)} – ${_date(last)}';
     return Scaffold(
       appBar: AppBar(title: Text(widget.t.title), actions: [
         IconButton(onPressed: widget.onEditTimeline, tooltip: 'Edit timeline', icon: const Icon(Icons.edit_outlined)),
@@ -4135,6 +4135,7 @@ class _ViewerState extends State<Viewer> {
     final currentName = widget.nameFor?.call(current.id) ?? (index == widget.all.indexOf(widget.asset) ? widget.memoryName : current.title);
     final currentCaption = widget.captionFor?.call(current.id) ?? (index == widget.all.indexOf(widget.asset) ? widget.caption : null);
     final currentFavorite = widget.isFavorite?.call(current.id) ?? (index == widget.all.indexOf(widget.asset) ? widget.favorite : false);
+    final displayName = (currentName ?? '').trim();
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -4189,7 +4190,7 @@ class _ViewerState extends State<Viewer> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      currentName?.trim().isNotEmpty == true ? currentName : 'Memory',
+                      displayName.isNotEmpty ? displayName : 'Memory',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800),
