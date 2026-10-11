@@ -90,7 +90,6 @@ class PcConnectService {
         if (!message.startsWith('LITTLE_MEMORIES_DISCOVER_V1|')) return;
         final suppliedPair = message.substring('LITTLE_MEMORIES_DISCOVER_V1|'.length);
         if (suppliedPair != pairingKey || _server == null) return;
-        final host = d.address.address;
         final response = jsonEncode({'service': 'Little Memories', 'version': 1, 'port': _server!.port, 'pair': pairingKey});
         _discoverySocket!.send(utf8.encode(response), d.address, d.port);
       });
@@ -926,19 +925,17 @@ class _HomeState extends State<Home> {
       final stamp = DateTime.now().millisecondsSinceEpoch;
       final base = (a.title ?? 'memory').replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
       final filename = 'LittleMemories_' + stamp.toString() + '_' + base;
-      final saved = await PhotoManager.editor.saveImage(
+      await PhotoManager.editor.saveImage(
         edited,
         filename: filename.toLowerCase().endsWith('.jpg') ? filename : filename + '.jpg',
         title: 'Edited ' + ((names[a.id] ?? '').isEmpty ? 'memory' : (names[a.id] ?? 'memory')),
         relativePath: 'Pictures/Little Memories',
       );
-      if (saved != null) {
-        await _refreshPhotos();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Edited photo saved as a new photo. Original is preserved.')),
-          );
-        }
+      await _refreshPhotos();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Edited photo saved as a new photo. Original is preserved.')),
+        );
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not save edited photo: $e')));
@@ -1774,7 +1771,7 @@ class _HomeState extends State<Home> {
             if (galleryShowNames && grid <= 3) Positioned(left: 6, right: 6, bottom: 6, child: Text(names[a.id] ?? a.title ?? 'Memory', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, shadows: [Shadow(blurRadius: 6)]))),
             if (fav) const Positioned(right: 6, top: 6, child: Icon(Icons.favorite, color: Colors.white, shadows: [Shadow(blurRadius: 5)])),
             if (selectedIds.contains(a.id)) Positioned.fill(child: Container(
-              decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(.28), borderRadius: BorderRadius.circular(9), border: Border.all(color: Theme.of(context).colorScheme.primary, width: 3)),
+              decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: .28), borderRadius: BorderRadius.circular(9), border: Border.all(color: Theme.of(context).colorScheme.primary, width: 3)),
               child: const Align(alignment: Alignment.topRight, child: Padding(padding: EdgeInsets.all(6), child: CircleAvatar(radius: 14, child: Icon(Icons.check, size: 17)))),
             )),
           ]),
@@ -3219,10 +3216,13 @@ class _ColorPaletteSearchPageState extends State<ColorPaletteSearchPage> {
     )).toList();
   }
 
+  int _colorChannel(double channel) =>
+      (channel * 255.0).round().clamp(0, 255).toInt();
+
   double _colorDistance(Color a, Color b) {
-    final dr = a.red - b.red;
-    final dg = a.green - b.green;
-    final db = a.blue - b.blue;
+    final dr = _colorChannel(a.r) - _colorChannel(b.r);
+    final dg = _colorChannel(a.g) - _colorChannel(b.g);
+    final db = _colorChannel(a.b) - _colorChannel(b.b);
     return math.sqrt((dr * dr + dg * dg + db * db).toDouble()) / 441.7;
   }
 
@@ -3240,9 +3240,9 @@ class _ColorPaletteSearchPageState extends State<ColorPaletteSearchPage> {
   }
 
   String _hex(Color color) =>
-      ('#' + color.red.toRadixString(16).padLeft(2, '0') +
-      color.green.toRadixString(16).padLeft(2, '0') +
-      color.blue.toRadixString(16).padLeft(2, '0')).toUpperCase();
+      ('#' + _colorChannel(color.r).toRadixString(16).padLeft(2, '0') +
+      _colorChannel(color.g).toRadixString(16).padLeft(2, '0') +
+      _colorChannel(color.b).toRadixString(16).padLeft(2, '0')).toUpperCase();
 
   Future<void> _chooseReference(AssetEntity asset) async {
     if (busy) return;
@@ -4180,22 +4180,22 @@ class _ViewerState extends State<Viewer> {
               child: Container(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(.72),
+                  color: Colors.black.withValues(alpha: .72),
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.white.withOpacity(.12)),
+                  border: Border.all(color: Colors.white.withValues(alpha: .12)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      currentName?.trim().isNotEmpty == true ? currentName! : 'Memory',
+                      currentName?.trim().isNotEmpty == true ? currentName : 'Memory',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 4),
-                    Text(_dateLabel(current.createDateTime), style: TextStyle(color: Colors.white.withOpacity(.72), fontSize: 12)),
+                    Text(_dateLabel(current.createDateTime), style: TextStyle(color: Colors.white.withValues(alpha: .72), fontSize: 12)),
                     if (currentCaption?.trim().isNotEmpty == true) ...[
                       const SizedBox(height: 7),
                       Text(currentCaption!, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 14)),
@@ -4226,7 +4226,7 @@ class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key, required this.grid, required this.dark, required this.themeIndex, required this.onGrid, required this.onTheme, required this.onDark, required this.onShare, required this.childName, required this.childBirthday, required this.onChildEdit, required this.onPcConnect, required this.onBackup, required this.backupHistory});
   @override Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(16), children: [
     const Text('Professional controls', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800)),
-    const SizedBox(height: 14),    Card(child:ListTile(leading:const Icon(Icons.palette_outlined),title:const Text('Comic app theme'),subtitle:Text(comicThemes[themeIndex].name),onTap:()=>showModalBottomSheet(context:context,builder:(_)=>SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[const Text('Choose your comic style',style:TextStyle(fontSize:22,fontWeight:FontWeight.w900)),const SizedBox(height:12),...List.generate(comicThemes.length,(i)=>Card(child:RadioListTile<int>(value:i,groupValue:themeIndex,title:Text(comicThemes[i].name),secondary:CircleAvatar(backgroundColor:comicThemes[i].seed),onChanged:(v){if(v!=null){onTheme(v);Navigator.pop(context);}})))]))))),
+    const SizedBox(height: 14),    Card(child:ListTile(leading:const Icon(Icons.palette_outlined),title:const Text('Comic app theme'),subtitle:Text(comicThemes[themeIndex].name),onTap:()=>showModalBottomSheet(context:context,builder:(_)=>SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[const Text('Choose your comic style',style:TextStyle(fontSize:22,fontWeight:FontWeight.w900)),const SizedBox(height:12),RadioGroup<int>(groupValue: themeIndex, onChanged: (value) { if (value != null) { onTheme(value); Navigator.pop(context); } }, child: Column(children: List.generate(comicThemes.length, (i) => Card(child: RadioListTile<int>(value: i, title: Text(comicThemes[i].name), secondary: CircleAvatar(backgroundColor: comicThemes[i].seed))))))]))))),
     Card(child: SwitchListTile(value: dark, onChanged: onDark, title: const Text('Dark mode'), secondary: const Icon(Icons.dark_mode_outlined))),
     Card(child: ListTile(title: const Text('Gallery grid size'), subtitle: Slider(value: grid.clamp(2,8).toDouble(), min: 2, max: 8, divisions: 6, label: grid.toString() + ' columns', onChanged: (v) => onGrid(v.round())), trailing: Text(grid.toString() + '×'))),
     Card(child: ListTile(leading: const Icon(Icons.child_care_outlined), title: Text(childName), subtitle: Text(childBirthday.isEmpty ? 'Add birthday and milestones' : 'Birthday: $childBirthday'), onTap: onChildEdit)),

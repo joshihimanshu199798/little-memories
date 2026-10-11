@@ -299,19 +299,17 @@ class _HomeState extends State<Home> {
       final stamp = DateTime.now().millisecondsSinceEpoch;
       final base = (a.title ?? 'memory').replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
       final filename = 'LittleMemories_' + stamp.toString() + '_' + base;
-      final saved = await PhotoManager.editor.saveImage(
+      await PhotoManager.editor.saveImage(
         edited,
         filename: filename.toLowerCase().endsWith('.jpg') ? filename : filename + '.jpg',
         title: 'Edited ' + ((names[a.id] ?? '').isEmpty ? 'memory' : (names[a.id] ?? 'memory')),
         relativePath: 'Pictures/Little Memories',
       );
-      if (saved != null) {
-        await _refreshPhotos();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Edited photo saved as a new photo. Original is preserved.')),
-          );
-        }
+      await _refreshPhotos();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Edited photo saved as a new photo. Original is preserved.')),
+        );
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not save edited photo: $e')));
