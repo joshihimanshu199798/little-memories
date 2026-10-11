@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:cross_file/cross_file.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:photo_manager/photo_manager.dart';
@@ -252,7 +251,7 @@ class _ScreenshotIntelligencePageState extends State<ScreenshotIntelligencePage>
         Padding(
           padding: const EdgeInsets.all(12),
           child: DropdownButtonFormField<int>(
-            value: filter,
+            initialValue: filter,
             decoration: const InputDecoration(labelText: 'Suggested category'),
             items: List.generate(labels.length, (i) => DropdownMenuItem(value: i, child: Text(labels[i]))),
             onChanged: (value) => setState(() => filter = value ?? 0),
