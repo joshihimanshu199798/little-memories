@@ -17,6 +17,20 @@ void main() {
       expect(image.getPixel(31, 23).r, 240);
     });
 
+    test('expands masks by the configured padding fraction', () {
+      final image = img.Image(width: 20, height: 20);
+      img.fill(image, color: img.ColorRgb8(255, 255, 255));
+
+      applyFacePrivacyMasks(
+        image,
+        [const Rect.fromLTWH(6, 6, 4, 4)],
+        paddingFraction: 0.5,
+      );
+
+      expect(image.getPixel(4, 4).r, 0);
+      expect(image.getPixel(3, 3).r, 255);
+    });
+
     test('clips partly off-image boxes safely', () {
       final image = img.Image(width: 8, height: 8);
       img.fill(image, color: img.ColorRgb8(255, 255, 255));

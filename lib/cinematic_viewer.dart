@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'auto_anonymizer_page.dart';
 
 class CinematicViewer extends StatefulWidget {
   final AssetEntity asset;
@@ -135,6 +136,20 @@ class _CinematicViewerState extends State<CinematicViewer> {
               leading: const Icon(Icons.share_outlined, color: Colors.white),
               title: const Text('Share memory', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
               onTap: () { Navigator.pop(context); widget.onShare(_current); },
+            ),
+            ListTile(
+              leading: const Icon(Icons.privacy_tip_outlined, color: Colors.white),
+              title: const Text('Anonymize faces', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+              subtitle: const Text('Preview black masks and export a separate copy', style: TextStyle(color: Colors.white70)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AutoAnonymizerPage(asset: _current),
+                  ),
+                );
+              },
             ),
             ListTile(
               leading: const Icon(Icons.info_outline_rounded, color: Colors.white),
