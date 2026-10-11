@@ -37,7 +37,7 @@ class _NaturalLanguageSearchPageState extends State<NaturalLanguageSearchPage> {
     final yearMatch = RegExp(r'\b(19\d{2}|20\d{2})\b').firstMatch(q);
     final year = yearMatch?.group(0);
     final tokens = q
-        .replaceAll(RegExp(r'\b(photos?|pictures?|memories|show|find|me|from|in|the|with|of|at|on)\b'), ' ')
+        .replaceAll(RegExp(r'\b(photos?|pictures?|memories|show|find|me|from|in|the|with|of|at|on|favorites?)\b'), ' ')
         .split(RegExp(r'\s+'))
         .where((part) => part.isNotEmpty && part != year)
         .toList();
