@@ -168,7 +168,7 @@ class _CinematicViewerState extends State<CinematicViewer> {
 
   Widget _button(IconData icon, VoidCallback action, {String? tooltip}) {
     return Material(
-      color: Colors.black.withOpacity(.36), shape: const CircleBorder(),
+      color: Colors.black.withValues(alpha: .36), shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(), onTap: action,
         child: Tooltip(message: tooltip ?? '',
@@ -212,7 +212,7 @@ class _CinematicViewerState extends State<CinematicViewer> {
         ),
         title: Container(
           padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-          decoration: BoxDecoration(color: Colors.black.withOpacity(.34), borderRadius: BorderRadius.circular(30)),
+          decoration: BoxDecoration(color: Colors.black.withValues(alpha: .34), borderRadius: BorderRadius.circular(30)),
           child: Text('${_index + 1} / ${widget.all.length}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
         ),
         actions: [
@@ -238,9 +238,9 @@ class _CinematicViewerState extends State<CinematicViewer> {
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(18, 16, 18, 15),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(.58),
+                  color: Colors.black.withValues(alpha: .58),
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.white.withOpacity(.12)),
+                  border: Border.all(color: Colors.white.withValues(alpha: .12)),
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
@@ -273,7 +273,7 @@ class _CinematicViewerState extends State<CinematicViewer> {
 
   Widget _dock(IconData icon, String label, VoidCallback action, {bool active = false}) {
     return Material(
-      color: active ? Colors.white : Colors.black.withOpacity(.56),
+      color: active ? Colors.white : Colors.black.withValues(alpha: .56),
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: action, borderRadius: BorderRadius.circular(18),
