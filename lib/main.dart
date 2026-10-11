@@ -309,6 +309,8 @@ class _HomeState extends State<Home> {
   String childName = 'My Little Star', childBirthday = '';  String searchQuery = '';
   bool showAllPhotos = false;
   Set<String> hiddenIds = {};
+  Set<String> decoyVaultIds = {};
+  String decoyVaultPinHash = '';
   Map<String, Set<String>> photoTags = {};
   int galleryFilter = 0;
   final TextEditingController searchController = TextEditingController();
@@ -328,6 +330,8 @@ class _HomeState extends State<Home> {
     final c = p.getString('captions'); if (c != null) captions = Map<String, String>.from(jsonDecode(c));
     backupHistory = p.getStringList('backupHistory') ?? [];
     hiddenIds = (p.getStringList('hiddenIds') ?? const []).toSet();
+    decoyVaultIds = (p.getStringList('decoyVaultIds') ?? const []).toSet();
+    decoyVaultPinHash = p.getString('decoyVaultPinHash') ?? '';
     final tagsRaw = p.getString('photoTags');
     if (tagsRaw != null) {
       final decoded = jsonDecode(tagsRaw) as Map;
@@ -499,6 +503,8 @@ class _HomeState extends State<Home> {
     await p.setString('captions', jsonEncode(captions));
     await p.setStringList('backupHistory', backupHistory);
     await p.setStringList('hiddenIds', hiddenIds.toList());
+    await p.setStringList('decoyVaultIds', decoyVaultIds.toList());
+    await p.setString('decoyVaultPinHash', decoyVaultPinHash);
     await p.setString('photoTags', jsonEncode(photoTags.map((k,v)=>MapEntry(k,v.toList()))));
     await p.setInt('galleryFilter', galleryFilter);
     await p.setInt('grid', grid);
@@ -661,6 +667,87 @@ class _HomeState extends State<Home> {
     );
   }
 
+
+
+  Future<void> _openDecoyVault() async {
+    if (backgroundSyncing) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Wait for photo indexing to finish before opening Decoy Vault.')));
+      return;
+    }
+    final pin = TextEditingController();
+    final setup = decoyVaultPinHash.isEmpty;
+    final entered = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dctx) => AlertDialog(
+        title: Text(setup ? 'Set up Decoy Vault' : 'Unlock Decoy Vault'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(setup ? 'Create a 4–12 digit PIN for your decoy collection.' : 'Enter your Decoy Vault PIN.'),
+          if (setup) const Padding(padding: EdgeInsets.only(top: 8), child: Text(
+            'This PIN gates only this in-app collection. It does not encrypt files or hide them from your phone gallery or other apps.',
+            style: TextStyle(fontSize: 12))),
+          const SizedBox(height: 8),
+          TextField(controller: pin, autofocus: true, obscureText: true, keyboardType: TextInputType.number, maxLength: 12,
+            decoration: const InputDecoration(labelText: 'PIN', counterText: '')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () {
+            final value = pin.text.trim();
+            if (!RegExp(r'^\d{4,12}$').hasMatch(value)) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN must contain 4–12 digits.')));
+              return;
+            }
+            Navigator.pop(dctx, value);
+          }, child: Text(setup ? 'Create PIN' : 'Unlock')),
+        ],
+      ),
+    );
+    if (entered == null || !mounted) return;
+    final hash = sha256.convert(utf8.encode(entered)).toString();
+    if (setup) { decoyVaultPinHash = hash; await _save(); }
+    else if (hash != decoyVaultPinHash) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Incorrect PIN. Nothing was changed.')));
+      return;
+    }
+
+    final available = photos.where((a) => !hiddenIds.contains(a.id)).toList();
+    final selected = <String>{...decoyVaultIds.where((id) => available.any((a) => a.id == id))};
+    await showModalBottomSheet<void>(
+      context: context, isScrollControlled: true, showDragHandle: true,
+      builder: (sheetCtx) => StatefulBuilder(builder: (context, setSheet) => SafeArea(
+        child: SizedBox(height: MediaQuery.of(context).size.height * .82, child: Column(children: [
+          ListTile(
+            leading: const Icon(Icons.theater_comedy_outlined),
+            title: const Text('Decoy Vault', style: TextStyle(fontWeight: FontWeight.w900)),
+            subtitle: Text('${selected.length} decoy photos selected'),
+            trailing: TextButton(onPressed: () async {
+              decoyVaultIds = selected.toSet();
+              await _save();
+              if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+              if (mounted) ScaffoldMessenger.of(this.context).showSnackBar(const SnackBar(content: Text('Decoy collection saved.')));
+            }, child: const Text('Save')),
+          ),
+          const Padding(padding: EdgeInsets.fromLTRB(16, 0, 16, 10), child: Text(
+            'Choose harmless photos for this decoy collection. Hidden memories are excluded. This is not encrypted storage.',
+            style: TextStyle(fontSize: 12))),
+          Expanded(child: available.isEmpty ? const Center(child: Text('No available photos.')) : GridView.builder(
+            padding: const EdgeInsets.all(8),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 5, mainAxisSpacing: 5),
+            itemCount: available.length,
+            itemBuilder: (_, i) {
+              final a = available[i]; final chosen = selected.contains(a.id);
+              return GestureDetector(onTap: () => setSheet(() { chosen ? selected.remove(a.id) : selected.add(a.id); }),
+                child: Stack(fit: StackFit.expand, children: [
+                  ClipRRect(borderRadius: BorderRadius.circular(8), child: Thumb(a)),
+                  if (chosen) const Positioned(right: 5, top: 5, child: CircleAvatar(radius: 13, child: Icon(Icons.check, size: 17))),
+                ]));
+            },
+          )),
+        ])),
+      )),
+    );
+  }
 
   Future<void> _openJunkDrawer() async {
     if (backgroundSyncing) {
@@ -1863,6 +1950,7 @@ class _HomeState extends State<Home> {
             ListTile(leading: const Icon(Icons.palette_outlined), title: const Text('Color Palette Search'), subtitle: Text(backgroundSyncing ? 'Finishing photo indexing…' : 'Find photos with a similar color mood'), onTap: () { if (backgroundSyncing) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please wait until photo indexing finishes, then open Color Palette Search.'))); return; } Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => ColorPaletteSearchPage(photos: photos.where((photo) => !hiddenIds.contains(photo.id)).toList()))); }),
             ListTile(leading: const Icon(Icons.auto_awesome_rounded), title: const Text('Vibe & Emotion Sorting'), subtitle: Text(backgroundSyncing ? 'Finishing photo indexing…' : 'Sort memories by visual mood, offline'), onTap: () { if (backgroundSyncing) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please wait until photo indexing finishes, then open Vibe & Emotion Sorting.'))); return; } Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => VibeEmotionSortingPage(photos: photos.where((photo) => !hiddenIds.contains(photo.id)).toList()))); }),
             ListTile(leading: const Icon(Icons.inbox_outlined), title: const Text('Junk Drawer'), subtitle: const Text('Review low-resolution photos before deleting'), onTap: () { Navigator.pop(context); _openJunkDrawer(); }),
+            ListTile(leading: const Icon(Icons.theater_comedy_outlined), title: const Text('Decoy Vault'), subtitle: const Text('PIN-gated decoy photo collection'), onTap: () { Navigator.pop(context); _openDecoyVault(); }),
             ListTile(leading: const Icon(Icons.content_copy_rounded), title: const Text('Find likely duplicates'), onTap: () { Navigator.pop(context); _smartDuplicateScan(); }),
             ListTile(leading: const Icon(Icons.lock_outline_rounded), title: const Text('Private / Hidden memories'), onTap: () { Navigator.pop(context); _showHiddenMemories(); }),
             ListTile(leading: const Icon(Icons.slideshow_rounded), title: const Text('Play memory slideshow'), onTap: () { Navigator.pop(context); _startSlideshow(); }),
