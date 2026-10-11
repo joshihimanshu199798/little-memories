@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:cross_file/cross_file.dart';
@@ -165,8 +166,8 @@ class _ThreeDMemoryCardsPageState extends State<ThreeDMemoryCardsPage> {
                   ..rotateX(tiltX)
                   ..rotateY(tiltY),
                 child: Container(
-                  width: 300,
-                  height: 420,
+                  width: math.min(300.0, MediaQuery.sizeOf(context).width - 40),
+                  height: math.min(420.0, MediaQuery.sizeOf(context).height * 0.52),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(28),
@@ -300,6 +301,10 @@ class _MetadataInspectorPageState extends State<MetadataInspectorPage> {
       final decoded = img.decodeImage(bytes);
       if (decoded == null) throw FormatException('This format cannot be re-encoded by the local metadata cleaner.');
       final upright = img.bakeOrientation(decoded);
+      // Remove location/camera metadata and embedded text/profile metadata from the new copy.
+      upright.exif = img.ExifData();
+      upright.iccProfile = null;
+      upright.textData?.clear();
       final ext = (source.path.split('.').last.toLowerCase() == 'png') ? 'png' : 'jpg';
       final cleanBytes = ext == 'png' ? img.encodePng(upright) : img.encodeJpg(upright, quality: 95);
       // Re-encoding creates a new file and does not carry the source EXIF block.
@@ -333,7 +338,7 @@ class _MetadataInspectorPageState extends State<MetadataInspectorPage> {
             return Padding(
               padding: const EdgeInsets.all(8),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Review basic photo metadata and create a re-encoded copy that omits source EXIF metadata. The original is never modified. Unsupported formats may fail safely.'),
+                const Text('Review basic photo metadata. Tapping the action saves a separate re-encoded copy with source EXIF and embedded text metadata removed, then opens the system share sheet. The original is never modified; cancel sharing to keep the copy private.'),
                 if (status != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(status!)),
                 if (busy) const LinearProgressIndicator(),
               ]),
@@ -346,7 +351,7 @@ class _MetadataInspectorPageState extends State<MetadataInspectorPage> {
             subtitle: Text('${asset.width} × ${asset.height} • ${asset.createDateTime.toLocal()}\n${asset.mimeType ?? 'Unknown format'}'),
             isThreeLine: true,
             trailing: IconButton(
-              tooltip: 'Create metadata-clean copy',
+              tooltip: 'Save and share metadata-clean copy',
               onPressed: busy ? null : () => _exportCleanCopy(asset),
               icon: const Icon(Icons.privacy_tip_outlined),
             ),
