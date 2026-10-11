@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:cross_file/cross_file.dart';
@@ -294,7 +293,6 @@ class _MetadataInspectorPageState extends State<MetadataInspectorPage> {
   Future<void> _exportCleanCopy(AssetEntity asset) async {
     if (busy) return;
     setState(() { busy = true; status = null; });
-    Directory? temp;
     try {
       final source = await asset.file;
       if (source == null || !await source.exists()) throw StateError('Local original file is unavailable.');
@@ -306,9 +304,6 @@ class _MetadataInspectorPageState extends State<MetadataInspectorPage> {
       final ext = (source.path.split('.').last.toLowerCase() == 'png') ? 'png' : 'jpg';
       final cleanBytes = ext == 'png' ? img.encodePng(upright) : img.encodeJpg(upright, quality: 95);
       // Re-encoding creates a new file and does not carry the source EXIF block.
-      temp = await Directory.systemTemp.createTemp('little_memories_clean_export_');
-      final output = File('${temp.path}/LittleMemories_clean_${DateTime.now().millisecondsSinceEpoch}.$ext');
-      await output.writeAsBytes(cleanBytes, flush: true);
       final saved = await PhotoManager.editor.saveImage(
         Uint8List.fromList(cleanBytes),
         filename: 'LittleMemories_clean_${DateTime.now().millisecondsSinceEpoch}.$ext',
@@ -322,7 +317,6 @@ class _MetadataInspectorPageState extends State<MetadataInspectorPage> {
     } catch (error) {
       if (mounted) setState(() => status = 'Could not create a cleaned copy: ${error.toString()}');
     } finally {
-      if (temp != null && await temp.exists()) await temp.delete(recursive: true);
       if (mounted) setState(() => busy = false);
     }
   }
