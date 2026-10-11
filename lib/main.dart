@@ -3200,30 +3200,56 @@ class _VibeEmotionSortingPageState extends State<VibeEmotionSortingPage> {
     if (!mounted || bytes == null) return;
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => Dialog(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Image.memory(bytes, fit: BoxFit.contain),
+      builder: (dialogContext) {
+        final viewport = MediaQuery.sizeOf(dialogContext);
+        return Dialog(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: viewport.width * 0.9,
+              maxHeight: viewport.height * 0.85,
+            ),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: viewport.height * 0.42,
+                      ),
+                      child: Image.memory(bytes, fit: BoxFit.contain),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.auto_awesome_rounded,
+                          color: _moodColor(photo.mood, dialogContext),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${photo.mood} mood',
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          child: const Text('Close'),
+                        ),
+                      ],
+                    ),
+                    const Text(
+                      'Mood is estimated on-device from image colors and contrast. It is a visual suggestion, not an analysis of the people or events in the photo.',
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.auto_awesome_rounded, color: _moodColor(photo.mood, context)),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text('${photo.mood} mood', style: const TextStyle(fontWeight: FontWeight.w800))),
-                  TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
-                ],
-              ),
-              const Text('Mood is estimated on-device from image colors and contrast. It is a visual suggestion, not an analysis of the people or events in the photo.'),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
