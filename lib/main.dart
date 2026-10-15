@@ -7,6 +7,8 @@ import 'dart:math' as math;
 import 'dart:async';
 import 'package:crypto/crypto.dart';
 import 'package:image/image.dart' as img;
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -291,6 +293,7 @@ class _HomeState extends State<Home> {
   int tab = 0, grid = 3, albumGrid = 3, exploreGrid = 3;
   bool galleryNewestFirst = true;
   bool galleryShowNames = false;
+  bool gallerySortByName = false;
   bool loading = true, permissionDenied = false;
   bool videosLoaded = false;
   bool backgroundSyncing = false;
@@ -338,6 +341,9 @@ class _HomeState extends State<Home> {
       photoTags = decoded.map((k,v) => MapEntry(k.toString(), Set<String>.from(v as List)));
     }
     galleryFilter = p.getInt('galleryFilter') ?? 0;
+    galleryNewestFirst = p.getBool('galleryNewestFirst') ?? true;
+    galleryShowNames = p.getBool('galleryShowNames') ?? false;
+    gallerySortByName = p.getBool('gallerySortByName') ?? false;
     grid = p.getInt('grid') ?? 3;
     albumGrid = p.getInt('albumGrid') ?? 3;
     exploreGrid = p.getInt('exploreGrid') ?? 3;
@@ -507,6 +513,9 @@ class _HomeState extends State<Home> {
     await p.setString('decoyVaultPinHash', decoyVaultPinHash);
     await p.setString('photoTags', jsonEncode(photoTags.map((k,v)=>MapEntry(k,v.toList()))));
     await p.setInt('galleryFilter', galleryFilter);
+    await p.setBool('galleryNewestFirst', galleryNewestFirst);
+    await p.setBool('galleryShowNames', galleryShowNames);
+    await p.setBool('gallerySortByName', gallerySortByName);
     await p.setInt('grid', grid);
     await p.setInt('albumGrid', albumGrid);
     await p.setInt('exploreGrid', exploreGrid);
@@ -1745,6 +1754,34 @@ class _HomeState extends State<Home> {
       Positioned(left:12,right:12,bottom:12,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(title,maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(color:Colors.white,fontSize:15,fontWeight:FontWeight.w900)),const SizedBox(height:2),Text(subtitle,style:const TextStyle(color:Colors.white70,fontSize:10,fontWeight:FontWeight.w700))])),
     ]))));
   }
+  Future<void> _importPhotos() async {
+    try {
+      final picked = await ImagePicker().pickMultiImage(imageQuality: 95);
+      if (picked.isEmpty) return;
+      var imported = 0;
+      for (final file in picked) {
+        final bytes = await file.readAsBytes();
+        if (bytes.isEmpty) continue;
+        final originalName = file.name.trim().isEmpty ? 'memory.jpg' : file.name;
+        final safeName = originalName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+        final filename = 'LM_${DateTime.now().microsecondsSinceEpoch}_$safeName';
+        final saved = await PhotoManager.editor.saveImage(bytes,
+          filename: filename.toLowerCase().endsWith('.jpg') || filename.toLowerCase().endsWith('.jpeg') ? filename : '$filename.jpg',
+          title: originalName, relativePath: 'Pictures/Little Memories');
+        if (saved != null) imported++;
+      }
+      await _refreshPhotos();
+      if (!mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(imported == 0
+        ? 'No photos were imported. Check photo-library permissions and try again.'
+        : 'Added $imported photo${imported == 1 ? '' : 's'} to Little Memories.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not add photos: $e')));
+    }
+  }
+
   Widget _gallery({bool onlyFavorites = false}) {
     final q = searchQuery.trim().toLowerCase();
     final storyIds = timelines.expand((t) => t.assets).toSet();
@@ -1753,31 +1790,69 @@ class _HomeState extends State<Home> {
     if (galleryFilter == 2) source = source.where((a) => (names[a.id] ?? '').trim().isNotEmpty).toList();
     if (galleryFilter == 3) source = source.where((a) => (captions[a.id] ?? '').trim().isNotEmpty).toList();
     if (galleryFilter == 4) source = source.where((a) => storyIds.contains(a.id)).toList();
-     if (galleryFilter == 5) source = source.where((a) => (photoTags[a.id] ?? {}).isNotEmpty).toList();
+    if (galleryFilter == 5) source = source.where((a) => (photoTags[a.id] ?? {}).isNotEmpty).toList();
     source = source.where((a) {
-      final text = ((names[a.id] ?? a.title ?? 'Photo') + ' ' + (captions[a.id] ?? '')).toLowerCase();
+      final tags = (photoTags[a.id] ?? {}).join(' ');
+      final text = '${names[a.id] ?? a.title ?? 'Photo'} ${captions[a.id] ?? ''} $tags ${a.relativePath ?? ''}'.toLowerCase();
       return q.isEmpty || text.contains(q) || a.createDateTime.year.toString() == q;
     }).toList();
-    source.sort((a, b) => galleryNewestFirst ? b.createDateTime.compareTo(a.createDateTime) : a.createDateTime.compareTo(b.createDateTime));
-    if (source.isEmpty) return Center(child: Text(q.isEmpty ? (onlyFavorites ? 'No favorite memories yet.' : 'No memories match this filter.') : 'No memories match "' + searchQuery + '".'));
-    return RefreshIndicator(onRefresh: _refreshPhotos, child: GridView.builder(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 28),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: grid, crossAxisSpacing: 5, mainAxisSpacing: 5),
+    source.sort((a, b) {
+      if (gallerySortByName) {
+        final byName = (names[a.id] ?? a.title ?? 'Photo').toLowerCase().compareTo((names[b.id] ?? b.title ?? 'Photo').toLowerCase());
+        if (byName != 0) return byName;
+      }
+      return galleryNewestFirst ? b.createDateTime.compareTo(a.createDateTime) : a.createDateTime.compareTo(b.createDateTime);
+    });
+    if (source.isEmpty) {
+      final hasFilters = q.isNotEmpty || galleryFilter != 0 || onlyFavorites;
+      return Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.search_off_rounded, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        const SizedBox(height: 12),
+        Text(q.isEmpty ? (onlyFavorites ? 'No favorite memories yet.' : 'No memories match these filters.') : 'No memories match “$searchQuery”.',
+          textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
+        const Text('Try another search or change the category filter.', textAlign: TextAlign.center),
+        if (hasFilters) ...[
+          const SizedBox(height: 14),
+          OutlinedButton.icon(onPressed: () async { searchController.clear(); setState(() { searchQuery = ''; galleryFilter = 0; }); await _save(); },
+            icon: const Icon(Icons.filter_alt_off_rounded), label: const Text('Clear search and filters')),
+        ],
+        if (photos.isEmpty) ...[
+          const SizedBox(height: 12),
+          FilledButton.icon(onPressed: _importPhotos, icon: const Icon(Icons.add_photo_alternate_outlined), label: const Text('Add photos')),
+        ],
+      ])));
+    }
+    final width = MediaQuery.of(context).size.width;
+    final responsiveColumns = ((width + 8) / 145).floor().clamp(2, grid);
+    return RefreshIndicator(onRefresh: _refreshPhotos, child: MasonryGridView.count(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 28), crossAxisCount: responsiveColumns, crossAxisSpacing: 7, mainAxisSpacing: 7,
       itemCount: source.length,
       itemBuilder: (_, i) {
         final a = source[i], fav = favorites.contains(a.id);
+        final ratio = (a.width > 0 && a.height > 0 ? a.width / a.height : 1.0).clamp(0.62, 1.55);
         return GestureDetector(
           onTap: () => selectionMode ? _toggleSelection(a) : _openPhoto(a, source),
           onLongPress: () => selectionMode ? _toggleSelection(a) : _showPhotoActions(a, source),
-          child: Stack(fit: StackFit.expand, children: [
-            ClipRRect(borderRadius: BorderRadius.circular(9), child: Thumb(a)),
-            if (galleryShowNames && grid <= 3) Positioned(left: 6, right: 6, bottom: 6, child: Text(names[a.id] ?? a.title ?? 'Memory', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, shadows: [Shadow(blurRadius: 6)]))),
-            if (fav) const Positioned(right: 6, top: 6, child: Icon(Icons.favorite, color: Colors.white, shadows: [Shadow(blurRadius: 5)])),
-            if (selectedIds.contains(a.id)) Positioned.fill(child: Container(
-              decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(.28), borderRadius: BorderRadius.circular(9), border: Border.all(color: Theme.of(context).colorScheme.primary, width: 3)),
-              child: const Align(alignment: Alignment.topRight, child: Padding(padding: EdgeInsets.all(6), child: CircleAvatar(radius: 14, child: Icon(Icons.check, size: 17)))),
-            )),
-          ]),
+          child: ClipRRect(borderRadius: BorderRadius.circular(12), child: AspectRatio(aspectRatio: ratio,
+            child: Stack(fit: StackFit.expand, children: [
+              Thumb(a),
+              if (galleryShowNames) Positioned(left: 5, right: 5, bottom: 5, child: DecoratedBox(
+                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(7)),
+                child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: Text(names[a.id] ?? a.title ?? 'Memory', maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 11))))),
+              Positioned(right: 4, top: 4, child: Material(color: Colors.black45, shape: const CircleBorder(),
+                child: IconButton(tooltip: fav ? 'Remove favorite' : 'Add favorite', visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(minWidth: 34, minHeight: 34), padding: const EdgeInsets.all(5), iconSize: 19,
+                  onPressed: () async { setState(() => fav ? favorites.remove(a.id) : favorites.add(a.id)); await _save(); },
+                  icon: Icon(fav ? Icons.favorite_rounded : Icons.favorite_border_rounded, color: fav ? Colors.pinkAccent : Colors.white)))),
+              if (selectedIds.contains(a.id)) Positioned.fill(child: Container(
+                decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: .28),
+                  border: Border.all(color: Theme.of(context).colorScheme.primary, width: 3)),
+                child: const Align(alignment: Alignment.topRight, child: Padding(padding: EdgeInsets.all(6),
+                  child: CircleAvatar(radius: 14, child: Icon(Icons.check, size: 17)))))),
+            ]))),
         );
       },
     ));
@@ -1881,8 +1956,17 @@ class _HomeState extends State<Home> {
           Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 4), child: Row(children: [
             Expanded(child: Text(photos.length.toString() + ' memories', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600))),
             IconButton(tooltip:'Select multiple photos',onPressed:()=>setState(()=>selectionMode=true),icon:const Icon(Icons.checklist_rounded)),
-            IconButton(tooltip: galleryNewestFirst ? 'Showing newest first' : 'Showing oldest first', onPressed: () => setState(() => galleryNewestFirst = !galleryNewestFirst), icon: Icon(galleryNewestFirst ? Icons.south_rounded : Icons.north_rounded)),
-            IconButton(tooltip: galleryShowNames ? 'Hide names' : 'Show names', onPressed: () => setState(() => galleryShowNames = !galleryShowNames), icon: Icon(galleryShowNames ? Icons.text_fields : Icons.text_fields_outlined)),
+            IconButton(tooltip: galleryNewestFirst ? 'Showing newest first' : 'Showing oldest first', onPressed: () async { setState(() => galleryNewestFirst = !galleryNewestFirst); await _save(); }, icon: Icon(galleryNewestFirst ? Icons.south_rounded : Icons.north_rounded)),
+            PopupMenuButton<String>(tooltip: 'Sort gallery', onSelected: (v) async {
+              setState(() { if (v == 'newest') { galleryNewestFirst = true; gallerySortByName = false; } if (v == 'oldest') { galleryNewestFirst = false; gallerySortByName = false; } if (v == 'name') gallerySortByName = true; });
+              await _save();
+            }, itemBuilder: (_) => [
+              CheckedPopupMenuItem(value: 'newest', checked: galleryNewestFirst && !gallerySortByName, child: const Text('Newest first')),
+              CheckedPopupMenuItem(value: 'oldest', checked: !galleryNewestFirst && !gallerySortByName, child: const Text('Oldest first')),
+              CheckedPopupMenuItem(value: 'name', checked: gallerySortByName, child: const Text('Name (A–Z)')),
+            ], child: const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.sort_rounded))),
+            IconButton(tooltip: galleryShowNames ? 'Hide names' : 'Show names', onPressed: () async { setState(() => galleryShowNames = !galleryShowNames); await _save(); }, icon: Icon(galleryShowNames ? Icons.text_fields : Icons.text_fields_outlined)),
+            IconButton(tooltip: 'Add photos', onPressed: _importPhotos, icon: const Icon(Icons.add_photo_alternate_outlined)),
             PopupMenuButton<int>(tooltip: 'Grid size', initialValue: grid, onSelected: (v) async { setState(() => grid = v); await _save(); }, itemBuilder: (_) => [2,3,4,5,6,7,8].map((v) => PopupMenuItem(value: v, child: Text('$v columns'))).toList(), child: const Icon(Icons.grid_view_rounded)),
           ])),
           SizedBox(height: 42, child: ListView(
