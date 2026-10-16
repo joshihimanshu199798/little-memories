@@ -353,6 +353,7 @@ class _HomeState extends State<Home> {
   String childName = 'My Little Star', childBirthday = '';  String searchQuery = '';
   bool showAllPhotos = false;
   Set<String> hiddenIds = {};
+  Set<String> deletedIds = {};
   Set<String> decoyVaultIds = {};
   String decoyVaultPinHash = '';
   Map<String, Set<String>> photoTags = {};
@@ -374,6 +375,7 @@ class _HomeState extends State<Home> {
     final c = p.getString('captions'); if (c != null) captions = Map<String, String>.from(jsonDecode(c));
     backupHistory = p.getStringList('backupHistory') ?? [];
     hiddenIds = (p.getStringList('hiddenIds') ?? const []).toSet();
+    deletedIds = (p.getStringList('deletedIds') ?? const []).toSet();
     decoyVaultIds = (p.getStringList('decoyVaultIds') ?? const []).toSet();
     decoyVaultPinHash = p.getString('decoyVaultPinHash') ?? '';
     final tagsRaw = p.getString('photoTags');
@@ -550,6 +552,7 @@ class _HomeState extends State<Home> {
     await p.setString('captions', jsonEncode(captions));
     await p.setStringList('backupHistory', backupHistory);
     await p.setStringList('hiddenIds', hiddenIds.toList());
+    await p.setStringList('deletedIds', deletedIds.toList());
     await p.setStringList('decoyVaultIds', decoyVaultIds.toList());
     await p.setString('decoyVaultPinHash', decoyVaultPinHash);
     await p.setString('photoTags', jsonEncode(photoTags.map((k,v)=>MapEntry(k,v.toList()))));
@@ -879,24 +882,29 @@ class _HomeState extends State<Home> {
   Future<void> _shareMemoryCollection() => _share(photos.take(20).toList(), 'My Little Memories');
 
   Future<void> _bulkDelete() async {
-    if(selectedIds.isEmpty)return;
-    final count=selectedIds.length;
-    final ok=await showDialog<bool>(context:context,builder:(_)=>AlertDialog(
-      title:Text('Delete '+count.toString()+' photos?'),
-      content:const Text('The selected photos will be deleted from the phone gallery. This cannot be undone from Little Memories.'),
-      actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(context,true),child:const Text('Delete'))],
-    ))??false;
-    if(!ok)return;
-    try{
-      final deleted=await PhotoManager.editor.deleteWithIds(selectedIds.toList());
-      if (!mounted) return;
-      setState((){
-        for(final id in deleted){favorites.remove(id);hiddenIds.remove(id);names.remove(id);captions.remove(id);memoryAlbums.forEach((k,v)=>v.remove(id));}
-        selectedIds.clear();selectionMode=false;
-      });
-      await _save();await _refreshPhotos();
-      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(deleted.length.toString()+' photos deleted.')));
-    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Could not delete photos: '+e.toString())));}
+    if (selectedIds.isEmpty) return;
+    final count = selectedIds.length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Move $count photos to Recently Deleted?'),
+        content: const Text('Photos will be hidden from Little Memories but remain in your phone gallery. You can restore them or permanently delete them from Recently Deleted.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Move')),
+        ],
+      ),
+    ) ?? false;
+    if (!ok) return;
+    setState(() {
+      deletedIds.addAll(selectedIds);
+      selectedIds.clear();
+      selectionMode = false;
+    });
+    await _save();
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$count photos moved to Recently Deleted.')),
+    );
   }
 
   Future<void> _createAlbumFromSelection() async {
@@ -1082,7 +1090,7 @@ class _HomeState extends State<Home> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Delete photo?'),
-        content: const Text('This photo will be moved to the phone gallery trash/recently deleted area when supported by Android.'),
+        content: const Text('This moves the photo to Little Memories Recently Deleted. The original file stays on your phone, and you can restore it here later.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
@@ -1090,24 +1098,15 @@ class _HomeState extends State<Home> {
       ),
     ) ?? false;
     if (!ok) return;
-    try {
-      final deleted = await PhotoManager.editor.deleteWithIds([a.id]);
-      if (!mounted) return;
-      if (deleted.contains(a.id)) {
-        setState(() {
-          favorites.remove(a.id);
-          hiddenIds.remove(a.id);
-          names.remove(a.id);
-          captions.remove(a.id);
-          memoryAlbums.forEach((_, v) => v.remove(a.id));
-        });
-        await _save();
-        await _refreshPhotos();
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Photo deleted.')));
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not delete photo: ' + e.toString())));
-    }
+    setState(() {
+      deletedIds.add(a.id);
+      selectedIds.remove(a.id);
+      selectionMode = selectedIds.isNotEmpty;
+    });
+    await _save();
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Moved to Recently Deleted. Open Albums to restore it or delete it permanently.')),
+    );
   }
 
   Future<void> _showPhotoActions(AssetEntity a, List<AssetEntity> list) async {
@@ -1633,23 +1632,8 @@ class _HomeState extends State<Home> {
           _specialAlbumCard(
             icon: Icons.delete_sweep_rounded,
             title: 'Recently Deleted',
-            subtitle: deviceDeletedAlbums.isEmpty ? 'Not exposed by Android' : 'System trash • open to view',
-            onTap: () {
-              if (deviceDeletedAlbums.isEmpty) {
-                _showDeletedInfo();
-              } else {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => DeviceAlbumPage(
-                  paths: deviceDeletedAlbums,
-                  title: 'Recently Deleted',
-                  grid: albumGrid,
-                  hiddenIds: const {},
-                  onEdit: _openPhotoEditor,
-                  onShare: (a) => _share([a], 'Shared from Little Memories'),
-                  onToggleFavorite: (a) async {},
-                  onToggleHidden: (a) async {},
-                )));
-              }
-            },
+            subtitle: '${deletedIds.length} memories • restore or permanently delete',
+            onTap: _showAppDeletedMemories,
           ),
 
           if (custom.isNotEmpty) ...[
@@ -1769,6 +1753,82 @@ class _HomeState extends State<Home> {
     );
   }
 
+  Future<void> _showAppDeletedMemories() async {
+    final items = photos.where((a) => deletedIds.contains(a.id)).toList()
+      ..sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+    await showModalBottomSheet<void>(
+      context: context, isScrollControlled: true, showDragHandle: true,
+      builder: (sheetContext) => SafeArea(child: SizedBox(
+        height: MediaQuery.of(sheetContext).size.height * .78,
+        child: Column(children: [
+          Padding(padding: const EdgeInsets.fromLTRB(18, 4, 12, 12), child: Row(children: [
+            const Expanded(child: Text('Recently Deleted', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900))),
+            Text('${items.length} items'),
+          ])),
+          if (items.isEmpty)
+            const Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.delete_outline_rounded, size: 54), SizedBox(height: 10),
+              Text('Your deleted memories will appear here.'),
+            ])))
+          else Expanded(child: GridView.builder(
+            padding: const EdgeInsets.all(12),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: albumGrid.clamp(2, 8),
+              crossAxisSpacing: widget.gridSpacing, mainAxisSpacing: widget.gridSpacing),
+            itemCount: items.length,
+            itemBuilder: (_, i) {
+              final asset = items[i];
+              return ClipRRect(borderRadius: BorderRadius.circular(widget.cornerRadius),
+                child: Stack(fit: StackFit.expand, children: [
+                  Thumb(asset),
+                  Positioned(left: 4, right: 4, bottom: 4, child: Row(children: [
+                    Expanded(child: IconButton.filledTonal(
+                      tooltip: 'Restore memory',
+                      onPressed: () async {
+                        setState(() => deletedIds.remove(asset.id));
+                        await _save();
+                        if (sheetContext.mounted) Navigator.pop(sheetContext);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Memory restored to your gallery.')));
+                          _showAppDeletedMemories();
+                        }
+                      }, icon: const Icon(Icons.restore_rounded))),
+                    const SizedBox(width: 4),
+                    Expanded(child: IconButton.filled(
+                      tooltip: 'Permanently delete from phone',
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(
+                          title: const Text('Delete permanently?'),
+                          content: const Text('This asks Android to delete the original photo from your phone. It may not be recoverable.'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+                            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Delete permanently')),
+                          ],
+                        )) ?? false;
+                        if (!confirm) return;
+                        try {
+                          final removed = await PhotoManager.editor.deleteWithIds([asset.id]);
+                          if (!removed.contains(asset.id)) return;
+                          setState(() => deletedIds.remove(asset.id));
+                          await _save(); await _refreshPhotos();
+                          if (sheetContext.mounted) Navigator.pop(sheetContext);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Photo permanently deleted.')));
+                            _showAppDeletedMemories();
+                          }
+                        } catch (e) {
+                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not delete photo: $e')));
+                        }
+                      }, icon: const Icon(Icons.delete_forever_rounded))),
+                  ])),
+                ]));
+            },
+          )),
+        ]),
+      )),
+    );
+  }
+
   Future<void> _showDeletedInfo() async {
     await showDialog(context: context, builder: (_) => AlertDialog(
       title: const Text('Recently Deleted'),
@@ -1828,7 +1888,7 @@ class _HomeState extends State<Home> {
   Widget _gallery({bool onlyFavorites = false}) {
     final q = searchQuery.trim().toLowerCase();
     final storyIds = timelines.expand((t) => t.assets).toSet();
-    var source = photos.where((a) => !hiddenIds.contains(a.id)).toList();
+    var source = photos.where((a) => !hiddenIds.contains(a.id) && !deletedIds.contains(a.id)).toList();
     if (onlyFavorites || galleryFilter == 1) source = source.where((a) => favorites.contains(a.id)).toList();
     if (galleryFilter == 2) source = source.where((a) => (names[a.id] ?? '').trim().isNotEmpty).toList();
     if (galleryFilter == 3) source = source.where((a) => (captions[a.id] ?? '').trim().isNotEmpty).toList();
@@ -1866,9 +1926,8 @@ class _HomeState extends State<Home> {
         ],
       ])));
     }
-    final width = MediaQuery.of(context).size.width;
     final maxColumns = grid.clamp(2, 8).toInt();
-    final responsiveColumns = ((width + 8) / 145).floor().clamp(2, maxColumns).toInt();
+    final responsiveColumns = maxColumns;
     return RefreshIndicator(onRefresh: _refreshPhotos, child: MasonryGridView.count(
       padding: const EdgeInsets.fromLTRB(8, 4, 8, 28), crossAxisCount: responsiveColumns, crossAxisSpacing: Theme.of(context).extension<DesignTokens>()?.gridSpacing ?? 7, mainAxisSpacing: Theme.of(context).extension<DesignTokens>()?.gridSpacing ?? 7,
       itemCount: source.length,
@@ -1886,11 +1945,6 @@ class _HomeState extends State<Home> {
                 child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                   child: Text(names[a.id] ?? a.title ?? 'Memory', maxLines: 2, overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 11))))),
-              Positioned(right: 4, top: 4, child: Material(color: Colors.black45, shape: const CircleBorder(),
-                child: IconButton(tooltip: fav ? 'Remove favorite' : 'Add favorite', visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints(minWidth: 34, minHeight: 34), padding: const EdgeInsets.all(5), iconSize: 19,
-                  onPressed: () async { setState(() => fav ? favorites.remove(a.id) : favorites.add(a.id)); await _save(); },
-                  icon: Icon(fav ? Icons.favorite_rounded : Icons.favorite_border_rounded, color: fav ? Colors.pinkAccent : Colors.white)))),
               if (selectedIds.contains(a.id)) Positioned.fill(child: Container(
                 decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: .28),
                   border: Border.all(color: Theme.of(context).colorScheme.primary, width: 3)),
