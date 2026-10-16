@@ -4,12 +4,14 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:math';
 import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
 import 'dart:async';
 import 'package:crypto/crypto.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:flutter/material.dart';
+import 'package:dynamic_color/dynamic_color.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
@@ -233,6 +235,22 @@ class ComicTheme {
   final int style;
   const ComicTheme(this.name,this.subtitle,this.fontFamily,this.seed,this.background,this.surface,this.radius,this.cardElevation,this.buttonRadius,this.style);
 }
+
+/// Shared design tokens used by the app theme and responsive photo grids.
+@immutable
+class DesignTokens extends ThemeExtension<DesignTokens> {
+  final double gridSpacing;
+  final double cornerRadius;
+  final double typographyScale;
+  const DesignTokens({required this.gridSpacing, required this.cornerRadius, required this.typographyScale});
+  @override DesignTokens copyWith({double? gridSpacing, double? cornerRadius, double? typographyScale}) => DesignTokens(gridSpacing: gridSpacing ?? this.gridSpacing, cornerRadius: cornerRadius ?? this.cornerRadius, typographyScale: typographyScale ?? this.typographyScale);
+  @override DesignTokens lerp(covariant ThemeExtension<DesignTokens>? other, double t) {
+    if (other is! DesignTokens) return this;
+    return DesignTokens(gridSpacing: lerpDouble(gridSpacing, other.gridSpacing, t) ?? gridSpacing, cornerRadius: lerpDouble(cornerRadius, other.cornerRadius, t) ?? cornerRadius, typographyScale: lerpDouble(typographyScale, other.typographyScale, t) ?? typographyScale);
+  }
+}
+const designAccentColors=<Color>[Color(0xFFE85D75),Color(0xFF6750A4),Color(0xFF006A60),Color(0xFF0061A4),Color(0xFF9C4146),Color(0xFF7B5800),Color(0xFF526600),Color(0xFF444746),Color(0xFFB3261E)];
+const designAccentNames=<String>['Rose','Violet','Teal','Ocean','Berry','Amber','Olive','Graphite','Red'];
 const comicThemes=<ComicTheme>[
   ComicTheme('Comic Pop','Playful bubbles, stickers and bold panels','sans-serif-rounded',Color(0xFFE85D75),Color(0xFFFFF8F0),Color(0xFFFFFFFF),24,0,26,0),
   ComicTheme('Scrapbook','Paper layers, tape and handmade memories','serif',Color(0xFFB86B45),Color(0xFFF5EBDD),Color(0xFFFFFCF5),14,3,14,1),
@@ -251,42 +269,63 @@ class LittleMemoriesApp extends StatefulWidget {
   @override State<LittleMemoriesApp> createState() => _AppState();
 }
 class _AppState extends State<LittleMemoriesApp> {
-  bool dark=false; int themeIndex=0;
+  bool dark=false; int themeIndex=0; int accentIndex=-1; bool useDynamicColor=true;
+  double gridSpacing=6, cornerRadius=20, typographyScale=1;
   @override void initState(){super.initState();_loadTheme();}
-  Future<void> _loadTheme() async {final p=await SharedPreferences.getInstance();final saved=p.getInt('comicTheme')??0;if(mounted)setState(()=>themeIndex=saved.clamp(0,comicThemes.length-1));}
-  ThemeData _theme(ComicTheme t,bool isDark){
-    final scheme=ColorScheme.fromSeed(seedColor:t.seed,brightness:isDark?Brightness.dark:Brightness.light);
+  Future<void> _loadTheme() async {
+    final p=await SharedPreferences.getInstance();
+    final saved=p.getInt('comicTheme')??0;
+    final accent=p.getInt('designAccentIndex')??-1;
+    final spacing=p.getDouble('designGridSpacing')??6;
+    final radius=p.getDouble('designCornerRadius')??20;
+    final type=p.getDouble('designTypographyScale')??1;
+    final dynamic=p.getBool('designDynamicColor')??true;
+    final savedDark=p.getBool('darkMode')??false;
+    if(mounted)setState(() {themeIndex=saved.clamp(0,comicThemes.length-1);accentIndex=accent.clamp(-1,designAccentColors.length-1);gridSpacing=spacing.clamp(2,16);cornerRadius=radius.clamp(6,32);typographyScale=type.clamp(.85,1.2);useDynamicColor=dynamic;dark=savedDark;});
+  }
+  Future<void> _saveDesign(String key, Object value) async {final p=await SharedPreferences.getInstance();if(value is int)await p.setInt(key,value);else if(value is double)await p.setDouble(key,value);else if(value is bool)await p.setBool(key,value);}
+  ThemeData _theme(ComicTheme t,bool isDark,{ColorScheme? dynamicScheme}){
+    final seed=accentIndex>=0?designAccentColors[accentIndex]:t.seed;
+    final scheme=dynamicScheme??ColorScheme.fromSeed(seedColor:seed,brightness:isDark?Brightness.dark:Brightness.light);
     final text=ThemeData(useMaterial3:true).textTheme.apply(fontFamily:t.fontFamily,bodyColor:scheme.onSurface,displayColor:scheme.onSurface);
-    final card=RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.radius),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==3 ? .22 : .16),width:t.style==0?2:1));
-    final button=RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.buttonRadius),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==0 ? .7 : .25),width:t.style==0?1.5:1));
+    final radius=cornerRadius;
+    final card=RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==3 ? .22 : .16),width:t.style==0?2:1));
+    final button=RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius+2),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==0 ? .7 : .25),width:t.style==0?1.5:1));
     return ThemeData(
       useMaterial3:true,colorScheme:scheme,scaffoldBackgroundColor:t.background,textTheme:text,
+      extensions:<ThemeExtension<dynamic>>[DesignTokens(gridSpacing:gridSpacing,cornerRadius:cornerRadius,typographyScale:typographyScale)],
       visualDensity:t.style==5?VisualDensity.compact:VisualDensity.standard,
       cardTheme:CardThemeData(color:t.surface,elevation:t.cardElevation,margin:EdgeInsets.zero,clipBehavior:Clip.antiAlias,shape:card),
       appBarTheme:AppBarTheme(backgroundColor:t.background,surfaceTintColor:Colors.transparent,foregroundColor:scheme.onSurface,elevation:t.style==1?1:0,centerTitle:t.style==3||t.style==4,titleTextStyle:text.titleLarge?.copyWith(fontWeight:FontWeight.w900)),
-      navigationBarTheme:NavigationBarThemeData(height:t.style==0?78:72,backgroundColor:t.style==4?t.surface:t.background,elevation:t.style==0?3:0,indicatorColor:scheme.primary.withValues(alpha:.18),indicatorShape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==0?24:t.radius)),labelBehavior:t.style==5?NavigationDestinationLabelBehavior.alwaysShow:NavigationDestinationLabelBehavior.onlyShowSelected),
+      navigationBarTheme:NavigationBarThemeData(height:t.style==0?78:72,backgroundColor:t.style==4?t.surface:t.background,elevation:t.style==0?3:0,indicatorColor:scheme.primary.withValues(alpha:.18),indicatorShape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==0?24:radius)),labelBehavior:t.style==5?NavigationDestinationLabelBehavior.alwaysShow:NavigationDestinationLabelBehavior.onlyShowSelected),
       filledButtonTheme:FilledButtonThemeData(style:FilledButton.styleFrom(minimumSize:const Size(0,48),padding:const EdgeInsets.symmetric(horizontal:18,vertical:13),textStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w800),shape:button)),
       outlinedButtonTheme:OutlinedButtonThemeData(style:OutlinedButton.styleFrom(minimumSize:const Size(0,48),textStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w800),shape:button)),
-      textButtonTheme:TextButtonThemeData(style:TextButton.styleFrom(textStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w800),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.radius)))),
-      inputDecorationTheme:InputDecorationTheme(filled:true,fillColor:t.surface,contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:14),border:OutlineInputBorder(borderRadius:BorderRadius.circular(t.radius),borderSide:BorderSide(color:scheme.outlineVariant)),enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(t.radius),borderSide:BorderSide(color:scheme.outlineVariant)),focusedBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(t.radius),borderSide:BorderSide(color:scheme.primary,width:2))),
-      chipTheme:ChipThemeData(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==0?22:t.radius),side:BorderSide(color:scheme.outlineVariant)),side:BorderSide(color:scheme.outlineVariant)),
-      listTileTheme:ListTileThemeData(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.radius))),
-      dialogTheme:DialogThemeData(backgroundColor:t.surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.radius+4))),
-      bottomSheetTheme:BottomSheetThemeData(backgroundColor:t.surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.vertical(top:Radius.circular(t.radius+8)))),
-      popupMenuTheme:PopupMenuThemeData(color:t.surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.radius))),
-      floatingActionButtonTheme:FloatingActionButtonThemeData(backgroundColor:scheme.primary,foregroundColor:scheme.onPrimary,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.buttonRadius))),
-      snackBarTheme:SnackBarThemeData(behavior:SnackBarBehavior.floating,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.radius))),
+      textButtonTheme:TextButtonThemeData(style:TextButton.styleFrom(textStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w800),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius)))),
+      inputDecorationTheme:InputDecorationTheme(filled:true,fillColor:t.surface,contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:14),border:OutlineInputBorder(borderRadius:BorderRadius.circular(radius),borderSide:BorderSide(color:scheme.outlineVariant)),enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(radius),borderSide:BorderSide(color:scheme.outlineVariant)),focusedBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(radius),borderSide:BorderSide(color:scheme.primary,width:2))),
+      chipTheme:ChipThemeData(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==0?22:radius),side:BorderSide(color:scheme.outlineVariant)),side:BorderSide(color:scheme.outlineVariant)),
+      listTileTheme:ListTileThemeData(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius))),
+      dialogTheme:DialogThemeData(backgroundColor:t.surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius+4))),
+      bottomSheetTheme:BottomSheetThemeData(backgroundColor:t.surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.vertical(top:Radius.circular(radius+8)))),
+      popupMenuTheme:PopupMenuThemeData(color:t.surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius))),
+      floatingActionButtonTheme:FloatingActionButtonThemeData(backgroundColor:scheme.primary,foregroundColor:scheme.onPrimary,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius+2))),
+      snackBarTheme:SnackBarThemeData(behavior:SnackBarBehavior.floating,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius))),
     );
   }
   @override Widget build(BuildContext context){
     final t=comicThemes[themeIndex.clamp(0,comicThemes.length-1)];
-    return MaterialApp(debugShowCheckedModeBanner:false,title:'Little Memories',theme:_theme(t,false),darkTheme:_theme(t,true),themeMode:dark?ThemeMode.dark:ThemeMode.light,home:Home(themeIndex:themeIndex,onDark:(v)=>setState(()=>dark=v),onTheme:(v)async{final p=await SharedPreferences.getInstance();await p.setInt('comicTheme',v);if(mounted)setState(()=>themeIndex=v);}));
+    return DynamicColorBuilder(builder:(lightDynamic,darkDynamic){
+      final lightScheme=useDynamicColor&&accentIndex<0?lightDynamic:null;
+      final darkScheme=useDynamicColor&&accentIndex<0?darkDynamic:null;
+      return MaterialApp(debugShowCheckedModeBanner:false,title:'Little Memories',theme:_theme(t,false,dynamicScheme:lightScheme),darkTheme:_theme(t,true,dynamicScheme:darkScheme),themeMode:dark?ThemeMode.dark:ThemeMode.light,builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(textScaler:TextScaler.linear(typographyScale)),child:child??const SizedBox.shrink()),home:Home(themeIndex:themeIndex,onDark:(v)async{setState(()=>dark=v);await _saveDesign('darkMode',v);},onTheme:(v)async{await _saveDesign('comicTheme',v);if(mounted)setState(()=>themeIndex=v);},accentIndex:accentIndex,gridSpacing:gridSpacing,cornerRadius:cornerRadius,typographyScale:typographyScale,useDynamicColor:useDynamicColor,onAccent:(v)async{await _saveDesign('designAccentIndex',v);if(mounted)setState(()=>accentIndex=v);},onGridSpacing:(v)async{await _saveDesign('designGridSpacing',v);if(mounted)setState(()=>gridSpacing=v);},onCornerRadius:(v)async{await _saveDesign('designCornerRadius',v);if(mounted)setState(()=>cornerRadius=v);},onTypographyScale:(v)async{await _saveDesign('designTypographyScale',v);if(mounted)setState(()=>typographyScale=v);},onDynamicColor:(v)async{await _saveDesign('designDynamicColor',v);if(mounted)setState(()=>useDynamicColor=v);}));
+    });
   }
 }
 
 class Home extends StatefulWidget {
   final ValueChanged<bool> onDark; final ValueChanged<int> onTheme; final int themeIndex;
-  const Home({super.key,required this.onDark,required this.onTheme,required this.themeIndex});
+  final int accentIndex; final double gridSpacing,cornerRadius,typographyScale; final bool useDynamicColor;
+  final ValueChanged<int> onAccent; final ValueChanged<double> onGridSpacing,onCornerRadius,onTypographyScale; final ValueChanged<bool> onDynamicColor;
+  const Home({super.key,required this.onDark,required this.onTheme,required this.themeIndex,required this.accentIndex,required this.gridSpacing,required this.cornerRadius,required this.typographyScale,required this.useDynamicColor,required this.onAccent,required this.onGridSpacing,required this.onCornerRadius,required this.onTypographyScale,required this.onDynamicColor});
   @override State<Home> createState() => _HomeState();
 }
 class _HomeState extends State<Home> {
@@ -1990,6 +2029,7 @@ class _HomeState extends State<Home> {
       grid: grid, dark: Theme.of(context).brightness == Brightness.dark, themeIndex: widget.themeIndex,
       onGrid: (v) { setState(() => grid = v); _save(); },
       onDark: widget.onDark, onTheme: widget.onTheme,
+      accentIndex:widget.accentIndex,gridSpacing:widget.gridSpacing,cornerRadius:widget.cornerRadius,typographyScale:widget.typographyScale,useDynamicColor:widget.useDynamicColor,onAccent:widget.onAccent,onGridSpacing:widget.onGridSpacing,onCornerRadius:widget.onCornerRadius,onTypographyScale:widget.onTypographyScale,onDynamicColor:widget.onDynamicColor,
       onShare: () => _share(photos, 'My Little Memories'),
       childName: childName,
       childBirthday: childBirthday,
@@ -4309,10 +4349,13 @@ class _ViewerState extends State<Viewer> {
 
 class SettingsPage extends StatelessWidget {
   final int grid; final bool dark; final int themeIndex; final ValueChanged<int> onGrid; final ValueChanged<int> onTheme; final ValueChanged<bool> onDark; final VoidCallback onShare; final String childName; final String childBirthday; final VoidCallback onChildEdit; final VoidCallback onPcConnect; final VoidCallback onBackup; final List<String> backupHistory;
-  const SettingsPage({super.key, required this.grid, required this.dark, required this.themeIndex, required this.onGrid, required this.onTheme, required this.onDark, required this.onShare, required this.childName, required this.childBirthday, required this.onChildEdit, required this.onPcConnect, required this.onBackup, required this.backupHistory});
+  final int accentIndex; final double gridSpacing,cornerRadius,typographyScale; final bool useDynamicColor;
+  final ValueChanged<int> onAccent; final ValueChanged<double> onGridSpacing,onCornerRadius,onTypographyScale; final ValueChanged<bool> onDynamicColor;
+  const SettingsPage({super.key, required this.grid, required this.dark, required this.themeIndex, required this.onGrid, required this.onTheme, required this.onDark, required this.onShare, required this.childName, required this.childBirthday, required this.onChildEdit, required this.onPcConnect, required this.onBackup, required this.backupHistory,required this.accentIndex,required this.gridSpacing,required this.cornerRadius,required this.typographyScale,required this.useDynamicColor,required this.onAccent,required this.onGridSpacing,required this.onCornerRadius,required this.onTypographyScale,required this.onDynamicColor});
   @override Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(16), children: [
     const Text('Professional controls', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800)),
     const SizedBox(height: 14),    Card(child:ListTile(leading:const Icon(Icons.palette_outlined),title:const Text('Comic app theme'),subtitle:Text(comicThemes[themeIndex].name),onTap:()=>showModalBottomSheet(context:context,builder:(_)=>SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[const Text('Choose your comic style',style:TextStyle(fontSize:22,fontWeight:FontWeight.w900)),const SizedBox(height:12),...List.generate(comicThemes.length,(i)=>Card(child:RadioListTile<int>(value:i,groupValue:themeIndex,title:Text(comicThemes[i].name),secondary:CircleAvatar(backgroundColor:comicThemes[i].seed),onChanged:(v){if(v!=null){onTheme(v);Navigator.pop(context);}})))]))))),
+    Card(child: ListTile(leading:const Icon(Icons.tune_rounded),title:const Text('Design tokens'),subtitle:Text('${accentIndex<0?(useDynamicColor?'System colours':'Theme default'):designAccentNames[accentIndex]} • ${gridSpacing.round()} px spacing • ${cornerRadius.round()} px corners'),trailing:const Icon(Icons.chevron_right_rounded),onTap:()=>showModalBottomSheet(context:context,isScrollControlled:true,builder:(sheetContext)=>StatefulBuilder(builder:(context,setSheetState)=>SafeArea(child:ListView(padding:const EdgeInsets.fromLTRB(20,16,20,28),children:[const Text('Personalize your design',style:TextStyle(fontSize:22,fontWeight:FontWeight.w900)),const SizedBox(height:4),const Text('Changes apply across the app and are saved automatically.'),const SizedBox(height:18),SwitchListTile(contentPadding:EdgeInsets.zero,value:useDynamicColor,onChanged:(v){onDynamicColor(v);setSheetState((){});},title:const Text('Material You system colours'),subtitle:const Text('Use your Android wallpaper palette when System is selected.'),secondary:const Icon(Icons.auto_awesome_rounded)),const SizedBox(height:12),const Text('Accent colour',style:TextStyle(fontWeight:FontWeight.w800)),const SizedBox(height:8),Wrap(spacing:10,runSpacing:10,children:[ChoiceChip(label:const Text('System / theme'),selected:accentIndex<0,onSelected:(_){onAccent(-1);setSheetState((){});}),...List.generate(designAccentColors.length,(i)=>ChoiceChip(label:Text(designAccentNames[i]),avatar:CircleAvatar(backgroundColor:designAccentColors[i],radius:9),selected:accentIndex==i,onSelected:(_){onAccent(i);setSheetState((){});}))]),const SizedBox(height:18),Text('Grid spacing  ${gridSpacing.round()} px',style:const TextStyle(fontWeight:FontWeight.w800)),Slider(value:gridSpacing,min:2,max:16,divisions:14,label:'${gridSpacing.round()} px',onChanged:(v){onGridSpacing(v);setSheetState((){});}),Text('Corner radius  ${cornerRadius.round()} px',style:const TextStyle(fontWeight:FontWeight.w800)),Slider(value:cornerRadius,min:6,max:32,divisions:13,label:'${cornerRadius.round()} px',onChanged:(v){onCornerRadius(v);setSheetState((){});}),Text('Typography scale  ${(typographyScale*100).round()}%',style:const TextStyle(fontWeight:FontWeight.w800)),Slider(value:typographyScale,min:.85,max:1.2,divisions:7,label:'${(typographyScale*100).round()}%',onChanged:(v){onTypographyScale(v);setSheetState((){});}),const SizedBox(height:8),FilledButton.icon(onPressed:()=>Navigator.pop(sheetContext),icon:const Icon(Icons.check_rounded),label:const Text('Done'))])))))),
     Card(child: SwitchListTile(value: dark, onChanged: onDark, title: const Text('Dark mode'), secondary: const Icon(Icons.dark_mode_outlined))),
     Card(child: ListTile(title: const Text('Gallery grid size'), subtitle: Slider(value: grid.clamp(2,8).toDouble(), min: 2, max: 8, divisions: 6, label: grid.toString() + ' columns', onChanged: (v) => onGrid(v.round())), trailing: Text(grid.toString() + '×'))),
     Card(child: ListTile(leading: const Icon(Icons.child_care_outlined), title: Text(childName), subtitle: Text(childBirthday.isEmpty ? 'Add birthday and milestones' : 'Birthday: $childBirthday'), onTap: onChildEdit)),
