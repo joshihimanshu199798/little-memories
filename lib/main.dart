@@ -289,24 +289,26 @@ class _AppState extends State<LittleMemoriesApp> {
     final scheme=dynamicScheme??ColorScheme.fromSeed(seedColor:seed,brightness:isDark?Brightness.dark:Brightness.light);
     final text=ThemeData(useMaterial3:true).textTheme.apply(fontFamily:t.fontFamily,bodyColor:scheme.onSurface,displayColor:scheme.onSurface);
     final radius=cornerRadius;
+    final background=dynamicScheme?.surface??t.background;
+    final surface=dynamicScheme?.surfaceContainerLow??t.surface;
     final card=RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==3 ? .22 : .16),width:t.style==0?2:1));
     final button=RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius+2),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==0 ? .7 : .25),width:t.style==0?1.5:1));
     return ThemeData(
-      useMaterial3:true,colorScheme:scheme,scaffoldBackgroundColor:t.background,textTheme:text,
+      useMaterial3:true,colorScheme:scheme,scaffoldBackgroundColor:background,textTheme:text,
       extensions:<ThemeExtension<dynamic>>[DesignTokens(gridSpacing:gridSpacing,cornerRadius:cornerRadius,typographyScale:typographyScale)],
       visualDensity:t.style==5?VisualDensity.compact:VisualDensity.standard,
-      cardTheme:CardThemeData(color:t.surface,elevation:t.cardElevation,margin:EdgeInsets.zero,clipBehavior:Clip.antiAlias,shape:card),
-      appBarTheme:AppBarTheme(backgroundColor:t.background,surfaceTintColor:Colors.transparent,foregroundColor:scheme.onSurface,elevation:t.style==1?1:0,centerTitle:t.style==3||t.style==4,titleTextStyle:text.titleLarge?.copyWith(fontWeight:FontWeight.w900)),
-      navigationBarTheme:NavigationBarThemeData(height:t.style==0?78:72,backgroundColor:t.style==4?t.surface:t.background,elevation:t.style==0?3:0,indicatorColor:scheme.primary.withValues(alpha:.18),indicatorShape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==0?24:radius)),labelBehavior:t.style==5?NavigationDestinationLabelBehavior.alwaysShow:NavigationDestinationLabelBehavior.onlyShowSelected),
+      cardTheme:CardThemeData(color:surface,elevation:t.cardElevation,margin:EdgeInsets.zero,clipBehavior:Clip.antiAlias,shape:card),
+      appBarTheme:AppBarTheme(backgroundColor:background,surfaceTintColor:Colors.transparent,foregroundColor:scheme.onSurface,elevation:t.style==1?1:0,centerTitle:t.style==3||t.style==4,titleTextStyle:text.titleLarge?.copyWith(fontWeight:FontWeight.w900)),
+      navigationBarTheme:NavigationBarThemeData(height:t.style==0?78:72,backgroundColor:t.style==4?surface:background,elevation:t.style==0?3:0,indicatorColor:scheme.primary.withValues(alpha:.18),indicatorShape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==0?24:radius)),labelBehavior:t.style==5?NavigationDestinationLabelBehavior.alwaysShow:NavigationDestinationLabelBehavior.onlyShowSelected),
       filledButtonTheme:FilledButtonThemeData(style:FilledButton.styleFrom(minimumSize:const Size(0,48),padding:const EdgeInsets.symmetric(horizontal:18,vertical:13),textStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w800),shape:button)),
       outlinedButtonTheme:OutlinedButtonThemeData(style:OutlinedButton.styleFrom(minimumSize:const Size(0,48),textStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w800),shape:button)),
       textButtonTheme:TextButtonThemeData(style:TextButton.styleFrom(textStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w800),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius)))),
-      inputDecorationTheme:InputDecorationTheme(filled:true,fillColor:t.surface,contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:14),border:OutlineInputBorder(borderRadius:BorderRadius.circular(radius),borderSide:BorderSide(color:scheme.outlineVariant)),enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(radius),borderSide:BorderSide(color:scheme.outlineVariant)),focusedBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(radius),borderSide:BorderSide(color:scheme.primary,width:2))),
+      inputDecorationTheme:InputDecorationTheme(filled:true,fillColor:surface,contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:14),border:OutlineInputBorder(borderRadius:BorderRadius.circular(radius),borderSide:BorderSide(color:scheme.outlineVariant)),enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(radius),borderSide:BorderSide(color:scheme.outlineVariant)),focusedBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(radius),borderSide:BorderSide(color:scheme.primary,width:2))),
       chipTheme:ChipThemeData(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==0?22:radius),side:BorderSide(color:scheme.outlineVariant)),side:BorderSide(color:scheme.outlineVariant)),
       listTileTheme:ListTileThemeData(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius))),
-      dialogTheme:DialogThemeData(backgroundColor:t.surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius+4))),
-      bottomSheetTheme:BottomSheetThemeData(backgroundColor:t.surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.vertical(top:Radius.circular(radius+8)))),
-      popupMenuTheme:PopupMenuThemeData(color:t.surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius))),
+      dialogTheme:DialogThemeData(backgroundColor:surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius+4))),
+      bottomSheetTheme:BottomSheetThemeData(backgroundColor:surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.vertical(top:Radius.circular(radius+8)))),
+      popupMenuTheme:PopupMenuThemeData(color:surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius))),
       floatingActionButtonTheme:FloatingActionButtonThemeData(backgroundColor:scheme.primary,foregroundColor:scheme.onPrimary,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius+2))),
       snackBarTheme:SnackBarThemeData(behavior:SnackBarBehavior.floating,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius))),
     );
