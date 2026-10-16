@@ -43,7 +43,7 @@ jobs:
               <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
               <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
               <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>"""
-          s = s.replace('<application', perms + '\\n    <application', 1)
+          s = s.replace('<application', perms + '\n    <application', 1)
           p.write_text(s)
           PY
 
