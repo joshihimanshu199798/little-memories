@@ -63,6 +63,17 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
+      - name: Validate APK package
+        run: |
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          test -s "$APK"
+          unzip -t "$APK"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | tee /tmp/apk-badging.txt
+          grep -q "^package: name=" /tmp/apk-badging.txt
+          "$BUILD_TOOLS/apksigner" verify --verbose "$APK"
+          sha256sum "$APK"
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
