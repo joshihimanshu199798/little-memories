@@ -1986,7 +1986,7 @@ class _HomeState extends State<Home> {
           Expanded(child: _gallery()),
         ])
       : _dashboard();
-    final body = tab == 0 ? galleryBody : tab == 1 ? _albumsTab() : tab == 2 ? PhotoSearchPage(photos: photos, videos: videos, names: names, captions: captions, tags: photoTags, favorites: favorites, hiddenIds: hiddenIds, grid: exploreGrid, onGrid: (v) async { setState(() => exploreGrid = v); await _save(); }, onOpen: (a, list) { if (a.type == AssetType.video) { Navigator.push(context, MaterialPageRoute(builder: (_) => VideoViewer(asset: a))); } else { _openPhoto(a, list); } }, onEdit: _openPhotoEditor, onShare: (a) => _share([a], 'Shared from Little Memories'), onToggleFavorite: (a) async { setState(() { favorites.contains(a.id) ? favorites.remove(a.id) : favorites.add(a.id); }); await _save(); }, onTags: _showTagEditor) : tab == 3 ? PhotoStatsPage(photos: photos, videos: videos, favorites: favorites, hiddenIds: hiddenIds, tags: photoTags, albums: deviceAlbums, names: names, captions: captions) : SettingsPage(
+    final body = tab == 0 ? galleryBody : tab == 1 ? _albumsTab() : tab == 2 ? PhotoSearchPage(photos: photos, videos: videos, names: names, captions: captions, tags: photoTags, favorites: favorites, hiddenIds: hiddenIds, grid: exploreGrid, onGrid: (v) async { setState(() => exploreGrid = v); await _save(); }, onOpen: (a, list) { if (a.type == AssetType.video) { Navigator.push(context, MaterialPageRoute(builder: (_) => VideoViewer(asset: a))); } else { _openPhoto(a, list); } }, onEdit: _openPhotoEditor, onShare: (a) => _share([a], 'Shared from Little Memories'), onToggleFavorite: (a) async { setState(() { favorites.contains(a.id) ? favorites.remove(a.id) : favorites.add(a.id); }); await _save(); }, onTags: _showTagEditor) : tab == 2 ? PhotoStatsPage(photos: photos, videos: videos, favorites: favorites, hiddenIds: hiddenIds, tags: photoTags, albums: deviceAlbums, names: names, captions: captions) : SettingsPage(
       grid: grid, dark: Theme.of(context).brightness == Brightness.dark, themeIndex: widget.themeIndex,
       onGrid: (v) { setState(() => grid = v); _save(); },
       onDark: widget.onDark, onTheme: widget.onTheme,
@@ -2054,12 +2054,11 @@ class _HomeState extends State<Home> {
         onDestinationSelected: (v) {
           setState(() { tab = v; if (v == 0) showAllPhotos = false; });
           // Videos are indexed only when the Albums workspace is actually opened.
-          if (v == 1 || v == 2) unawaited(_refreshVideos());
+          if (v == 1) unawaited(_refreshVideos());
         },
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
           NavigationDestination(icon: Icon(Icons.collections_bookmark_outlined), selectedIcon: Icon(Icons.collections_bookmark), label: 'Albums'),
-          NavigationDestination(icon: Icon(Icons.search_rounded), selectedIcon: Icon(Icons.search_rounded), label: 'Explore'),
           NavigationDestination(icon: Icon(Icons.insights_outlined), selectedIcon: Icon(Icons.insights_rounded), label: 'Stats'),
           NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings'),
         ],
