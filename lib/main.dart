@@ -620,7 +620,7 @@ class _HomeState extends State<Home> {
         ListTile(title: const Text('Private / Hidden memories', style: TextStyle(fontWeight: FontWeight.w900)), subtitle: Text(hidden.length.toString() + ' memories'), trailing: IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close))),
         Expanded(child: GridView.builder(
           padding: const EdgeInsets.all(10),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: albumGrid, crossAxisSpacing: 5, mainAxisSpacing: 5),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: albumGrid, crossAxisSpacing: Theme.of(context).extension<DesignTokens>()?.gridSpacing ?? 5, mainAxisSpacing: Theme.of(context).extension<DesignTokens>()?.gridSpacing ?? 5),
           itemCount: hidden.length,
           itemBuilder: (_, i) {
             final a = hidden[i];
@@ -781,7 +781,7 @@ class _HomeState extends State<Home> {
             style: TextStyle(fontSize: 12))),
           Expanded(child: available.isEmpty ? const Center(child: Text('No available photos.')) : GridView.builder(
             padding: const EdgeInsets.all(8),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 5, mainAxisSpacing: 5),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: Theme.of(context).extension<DesignTokens>()?.gridSpacing ?? 5, mainAxisSpacing: Theme.of(context).extension<DesignTokens>()?.gridSpacing ?? 5),
             itemCount: available.length,
             itemBuilder: (_, i) {
               final a = available[i]; final chosen = selected.contains(a.id);
@@ -1056,7 +1056,7 @@ class _HomeState extends State<Home> {
             }, child: const Text('Done')),
           ),          Expanded(child: GridView.builder(
             padding: const EdgeInsets.all(8),            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: grid, crossAxisSpacing: 5, mainAxisSpacing: 5),
+              crossAxisCount: grid, crossAxisSpacing: Theme.of(context).extension<DesignTokens>()?.gridSpacing ?? 5, mainAxisSpacing: Theme.of(context).extension<DesignTokens>()?.gridSpacing ?? 5),
             itemCount: photos.length,
             itemBuilder: (_, i) {
               final a = photos[i], chosen = selected.contains(a.id);
@@ -1868,7 +1868,7 @@ class _HomeState extends State<Home> {
     final maxColumns = grid.clamp(2, 8).toInt();
     final responsiveColumns = ((width + 8) / 145).floor().clamp(2, maxColumns).toInt();
     return RefreshIndicator(onRefresh: _refreshPhotos, child: MasonryGridView.count(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 28), crossAxisCount: responsiveColumns, crossAxisSpacing: 7, mainAxisSpacing: 7,
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 28), crossAxisCount: responsiveColumns, crossAxisSpacing: Theme.of(context).extension<DesignTokens>()?.gridSpacing ?? 7, mainAxisSpacing: Theme.of(context).extension<DesignTokens>()?.gridSpacing ?? 7,
       itemCount: source.length,
       itemBuilder: (_, i) {
         final a = source[i], fav = favorites.contains(a.id);
@@ -2592,7 +2592,7 @@ class _DeviceAlbumPageState extends State<DeviceAlbumPage> {
               padding: const EdgeInsets.all(5),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: widget.grid.clamp(2, 8),
-                crossAxisSpacing: 4, mainAxisSpacing: 4,
+                crossAxisSpacing: Theme.of(context).extension<DesignTokens>()?.gridSpacing ?? 4, mainAxisSpacing: Theme.of(context).extension<DesignTokens>()?.gridSpacing ?? 4,
               ),
               itemCount: visible.length,
               itemBuilder: (_, i) => GestureDetector(
