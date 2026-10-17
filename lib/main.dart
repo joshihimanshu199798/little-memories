@@ -2309,9 +2309,7 @@ class _PhotoSearchPageState extends State<PhotoSearchPage> {
     super.initState();
     c = TextEditingController();
     localGrid = widget.grid;
-    _hintTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (mounted && q.isEmpty) setState(() => _hintIndex = (_hintIndex + 1) % _hints.length);
-    });
+    _hintTimer = Timer.periodic(const Duration(seconds: 3), (_) { if (mounted && q.isEmpty) setState(() => _hintIndex = (_hintIndex + 1) % _hints.length); });
   }
 
   @override void dispose() {
@@ -2475,26 +2473,23 @@ class _PhotoSearchPageState extends State<PhotoSearchPage> {
   }
 
   Future<void> _showFilters() async {
-    await showModalBottomSheet<void>(
-      context: context, showDragHandle: true,
+    await showModalBottomSheet<void>(context: context, showDragHandle: true,
       builder: (ctx) => StatefulBuilder(builder: (ctx, sheetSet) => SafeArea(
-        child: Padding(padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Filter memories', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 12),
-            Wrap(spacing: 8, runSpacing: 8, children: [
-              FilterChip(label: const Text('All media'), selected: mediaFilter == 0, onSelected: (_) { setState(() => mediaFilter = 0); sheetSet(() {}); }),
-              FilterChip(label: const Text('Photos'), selected: mediaFilter == 1, onSelected: (_) { setState(() => mediaFilter = mediaFilter == 1 ? 0 : 1); sheetSet(() {}); }),
-              FilterChip(label: const Text('Videos'), selected: mediaFilter == 2, onSelected: (_) { setState(() => mediaFilter = mediaFilter == 2 ? 0 : 2); sheetSet(() {}); }),
-              FilterChip(label: const Text('Tagged'), selected: filter == 1, onSelected: (_) { setState(() => filter = filter == 1 ? 0 : 1); sheetSet(() {}); }),
-              FilterChip(label: const Text('This year'), selected: filter == 2, onSelected: (_) { setState(() => filter = filter == 2 ? 0 : 2); sheetSet(() {}); }),
-              FilterChip(label: const Text('Landscape'), selected: filter == 3, onSelected: (_) { setState(() => filter = filter == 3 ? 0 : 3); sheetSet(() {}); }),
-              FilterChip(label: const Text('Portrait'), selected: filter == 4, onSelected: (_) { setState(() => filter = filter == 4 ? 0 : 4); sheetSet(() {}); }),
-            ]),
-            const SizedBox(height: 14),
-            SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Show results'))),
+        child: Padding(padding: const EdgeInsets.all(18), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Filter memories', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 12),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            FilterChip(label: const Text('All media'), selected: mediaFilter == 0, onSelected: (_) { setState(() => mediaFilter = 0); sheetSet(() {}); }),
+            FilterChip(label: const Text('Photos'), selected: mediaFilter == 1, onSelected: (_) { setState(() => mediaFilter = mediaFilter == 1 ? 0 : 1); sheetSet(() {}); }),
+            FilterChip(label: const Text('Videos'), selected: mediaFilter == 2, onSelected: (_) { setState(() => mediaFilter = mediaFilter == 2 ? 0 : 2); sheetSet(() {}); }),
+            FilterChip(label: const Text('Tagged'), selected: filter == 1, onSelected: (_) { setState(() => filter = filter == 1 ? 0 : 1); sheetSet(() {}); }),
+            FilterChip(label: const Text('This year'), selected: filter == 2, onSelected: (_) { setState(() => filter = filter == 2 ? 0 : 2); sheetSet(() {}); }),
+            FilterChip(label: const Text('Landscape'), selected: filter == 3, onSelected: (_) { setState(() => filter = filter == 3 ? 0 : 3); sheetSet(() {}); }),
+            FilterChip(label: const Text('Portrait'), selected: filter == 4, onSelected: (_) { setState(() => filter = filter == 4 ? 0 : 4); sheetSet(() {}); }),
           ]),
-        ),
+          const SizedBox(height: 14),
+          SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Show results'))),
+        ])),
       )),
     );
   }
@@ -2502,123 +2497,69 @@ class _PhotoSearchPageState extends State<PhotoSearchPage> {
   @override Widget build(BuildContext context) {
     final list = results;
     final cs = Theme.of(context).colorScheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final glass = cs.surface.withValues(alpha: dark ? .72 : .86);
+    final glass = cs.surface.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? .72 : .86);
     const chips = [('✦ Favorites', 'favorites'), ('✦ Videos', 'videos'), ('✦ Landscapes', 'landscapes'), ('✦ High-res', 'high-res'), ('✦ Recent', 'recent')];
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(14, 5, 6, 1), child: Row(children: [
         const Expanded(child: Text('AI Explore', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900, letterSpacing: -.6))),
-        IconButton(tooltip: 'Favorites', visualDensity: VisualDensity.compact,
-          onPressed: () => setState(() => favOnly = !favOnly),
-          icon: Icon(favOnly ? Icons.favorite_rounded : Icons.favorite_border_rounded, color: favOnly ? cs.error : cs.onSurface)),
+        IconButton(tooltip: 'Favorites', visualDensity: VisualDensity.compact, onPressed: () => setState(() => favOnly = !favOnly), icon: Icon(favOnly ? Icons.favorite_rounded : Icons.favorite_border_rounded, color: favOnly ? cs.error : cs.onSurface)),
         IconButton(tooltip: 'Filters', visualDensity: VisualDensity.compact, onPressed: _showFilters, icon: const Icon(Icons.tune_rounded)),
-        PopupMenuButton<String>(
-          tooltip: 'Options',
-          onSelected: (v) {
-            if (v == 'best') setState(() => sortMode = 0);
-            if (v == 'new') setState(() => sortMode = 1);
-            if (v == 'old') setState(() => sortMode = 2);
-            if (v == 'large') setState(() => sortMode = 3);
-            if (v.startsWith('g')) { final n = int.parse(v.substring(1)); setState(() => localGrid = n); widget.onGrid(n); }
-          },
-          itemBuilder: (_) => [
-            const PopupMenuItem(value: 'best', child: Text('AI relevance')),
-            const PopupMenuItem(value: 'new', child: Text('Newest first')),
-            const PopupMenuItem(value: 'old', child: Text('Oldest first')),
-            const PopupMenuItem(value: 'large', child: Text('Highest resolution')),
-            const PopupMenuDivider(),
-            for (final v in [2,3,4,5,6,7,8]) PopupMenuItem(value: 'g' + v.toString(), child: Text(v.toString() + ' columns')),
-          ],
-        ),
+        PopupMenuButton<String>(tooltip: 'Options', onSelected: (v) {
+          if (v == 'best') setState(() => sortMode = 0);
+          if (v == 'new') setState(() => sortMode = 1);
+          if (v == 'old') setState(() => sortMode = 2);
+          if (v == 'large') setState(() => sortMode = 3);
+          if (v.startsWith('g')) { final n = int.parse(v.substring(1)); setState(() => localGrid = n); widget.onGrid(n); }
+        }, itemBuilder: (_) => [
+          const PopupMenuItem(value: 'best', child: Text('AI relevance')),
+          const PopupMenuItem(value: 'new', child: Text('Newest first')),
+          const PopupMenuItem(value: 'old', child: Text('Oldest first')),
+          const PopupMenuItem(value: 'large', child: Text('Highest resolution')),
+          const PopupMenuDivider(),
+          for (final v in [2,3,4,5,6,7,8]) PopupMenuItem(value: 'g'+v.toString(), child: Text(v.toString()+' columns')),
+        ]),
       ])),
-      Padding(padding: const EdgeInsets.fromLTRB(14, 2, 14, 7), child: Container(
-        height: 52,
-        decoration: BoxDecoration(color: glass, borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: cs.outlineVariant.withValues(alpha: .48)),
-          boxShadow: [BoxShadow(color: cs.shadow.withValues(alpha: .045), blurRadius: 16, offset: const Offset(0, 4))]),
+      Padding(padding: const EdgeInsets.fromLTRB(14, 2, 14, 7), child: Container(height: 52,
+        decoration: BoxDecoration(color: glass, borderRadius: BorderRadius.circular(18), border: Border.all(color: cs.outlineVariant.withValues(alpha: .48)), boxShadow: [BoxShadow(color: cs.shadow.withValues(alpha: .045), blurRadius: 16, offset: const Offset(0, 4))]),
         child: Row(children: [
           Padding(padding: const EdgeInsets.only(left: 14, right: 9), child: Icon(Icons.auto_awesome_rounded, color: cs.primary, size: 22)),
-          Expanded(child: TextField(
-            controller: c, onChanged: (v) => setState(() => q = v),
-            onSubmitted: (v) {
-              final x = v.trim();
-              if (x.isNotEmpty && !history.contains(x)) setState(() { history.insert(0, x); if (history.length > 6) history.removeLast(); });
-            },
-            decoration: InputDecoration(hintText: q.isEmpty ? _hints[_hintIndex] : null,
-              hintStyle: TextStyle(color: cs.onSurfaceVariant.withValues(alpha: .9), fontSize: 13),
-              border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none,
-              isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 14)),
-          )),
-          if (q.isNotEmpty)
-            IconButton(tooltip: 'Clear search', visualDensity: VisualDensity.compact,
-              onPressed: () { c.clear(); setState(() => q = ''); }, icon: const Icon(Icons.close_rounded, size: 20))
-          else
-            IconButton(tooltip: 'Search tips', visualDensity: VisualDensity.compact,
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Search names, captions, tags, folders, dates, videos and photo quality.'))),
-              icon: Icon(Icons.info_outline_rounded, color: cs.onSurfaceVariant, size: 20)),
+          Expanded(child: TextField(controller: c, onChanged: (v) => setState(() => q = v), onSubmitted: (v) {
+            final x = v.trim(); if (x.isNotEmpty && !history.contains(x)) setState(() { history.insert(0, x); if (history.length > 6) history.removeLast(); });
+          }, decoration: InputDecoration(hintText: q.isEmpty ? _hints[_hintIndex] : null, hintStyle: TextStyle(color: cs.onSurfaceVariant.withValues(alpha: .9), fontSize: 13), border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 14)))),
+          if (q.isNotEmpty) IconButton(tooltip: 'Clear search', visualDensity: VisualDensity.compact, onPressed: () { c.clear(); setState(() => q = ''); }, icon: const Icon(Icons.close_rounded, size: 20))
+          else IconButton(tooltip: 'Search tips', visualDensity: VisualDensity.compact, onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Search names, captions, tags, folders, dates, videos and photo quality.'))), icon: Icon(Icons.info_outline_rounded, color: cs.onSurfaceVariant, size: 20)),
           const SizedBox(width: 5),
         ]),
       )),
       SizedBox(height: 35, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 14), children: [
-        for (final item in chips) Padding(padding: const EdgeInsets.only(right: 8), child: ActionChip(
-          visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 3),
-          label: Text(item.$1, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-          onPressed: () { c.text = item.$2; setState(() => q = item.$2); },
-        )),
+        for (final item in chips) Padding(padding: const EdgeInsets.only(right: 8), child: ActionChip(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 3), label: Text(item.$1, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)), onPressed: () { c.text = item.$2; setState(() => q = item.$2); })),
       ])),
-      if (history.isNotEmpty && q.isEmpty)
-        SizedBox(height: 27, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 14), children: [
-          for (final item in history.take(5)) Padding(padding: const EdgeInsets.only(right: 7),
-            child: InkWell(borderRadius: BorderRadius.circular(12), onTap: () => _runQuick(item),
-              child: Padding(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
-                child: Text(item, style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)))),
-        ])),
+      if (history.isNotEmpty && q.isEmpty) SizedBox(height: 27, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 14), children: [
+        for (final item in history.take(5)) Padding(padding: const EdgeInsets.only(right: 7), child: InkWell(borderRadius: BorderRadius.circular(12), onTap: () => _runQuick(item), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4), child: Text(item, style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant))))),
+      ])),
       Padding(padding: const EdgeInsets.fromLTRB(15, 5, 14, 5), child: Row(children: [
-        Text(list.length.toString() + ' memories', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: cs.onSurfaceVariant)),
-        const Spacer(),
-        Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-          decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .65), borderRadius: BorderRadius.circular(20)),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.sort_rounded, size: 14, color: cs.onSurfaceVariant), const SizedBox(width: 4),
-            Text(sortMode == 0 ? 'Sorted by AI match' : sortMode == 1 ? 'Newest first' : sortMode == 2 ? 'Oldest first' : 'Highest resolution',
-              style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant, fontWeight: FontWeight.w700)),
-          ]),
-        ),
+        Text(list.length.toString()+' memories', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: cs.onSurfaceVariant)), const Spacer(),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: cs.surfaceContainerHighest.withValues(alpha: .65), borderRadius: BorderRadius.circular(20)), child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.sort_rounded, size: 14, color: cs.onSurfaceVariant), const SizedBox(width: 4),
+          Text(sortMode == 0 ? 'Sorted by AI match' : sortMode == 1 ? 'Newest first' : sortMode == 2 ? 'Oldest first' : 'Highest resolution', style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant, fontWeight: FontWeight.w700)),
+        ])),
       ])),
-      Expanded(child: list.isEmpty
-        ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.search_off_rounded, size: 48), const SizedBox(height: 8),
-            const Text('No memories matched', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 5), const Text('Try a year, folder, tag, favorite, video or date', textAlign: TextAlign.center),
-          ]))
-        : GridView.builder(
-            padding: const EdgeInsets.fromLTRB(8, 2, 8, 24),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: localGrid.clamp(2, 8), crossAxisSpacing: 8, mainAxisSpacing: 8),
-            itemCount: list.length,
-            itemBuilder: (_, i) {
-              final a = list[i]; final tags = (widget.tags[a.id] ?? {}).take(2).join(' • ');
-              return GestureDetector(onTap: () => widget.onOpen(a, list), onLongPress: () => _actions(a, list),
-                child: Material(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(9), clipBehavior: Clip.antiAlias,
-                  child: Stack(fit: StackFit.expand, children: [
-                    Thumb(a),
-                    if (a.type == AssetType.video) const Positioned(left: 6, bottom: 6, child: CircleAvatar(radius: 13, backgroundColor: Colors.black54, child: Icon(Icons.play_arrow_rounded, color: Colors.white))),
-                    if (widget.favorites.contains(a.id)) const Positioned(right: 5, top: 5, child: Icon(Icons.favorite_rounded, color: Colors.white, size: 16)),
-                    if (tags.isNotEmpty) Positioned(left: 5, top: 5, right: 25, child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(7)),
-                      child: Text(tags, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700)))),
-                    Positioned(left: 5, right: 5, bottom: 5, child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(7)),
-                      child: Text(a.type == AssetType.video ? 'VIDEO' : ((a.relativePath ?? '').split('/').where((x) => x.isNotEmpty).isEmpty ? 'Photo' : (a.relativePath ?? '').split('/').where((x) => x.isNotEmpty).last),
-                        maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700)))),
-                  ]),
-                ),
-              );
-            },
-          )),
+      Expanded(child: list.isEmpty ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.search_off_rounded, size: 48), const SizedBox(height: 8), const Text('No memories matched', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)), const SizedBox(height: 5), const Text('Try a year, folder, tag, favorite, video or date', textAlign: TextAlign.center),
+      ])) : GridView.builder(padding: const EdgeInsets.fromLTRB(8, 2, 8, 24), gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: localGrid.clamp(2, 8), crossAxisSpacing: 8, mainAxisSpacing: 8), itemCount: list.length, itemBuilder: (_, i) {
+        final a = list[i]; final tags = (widget.tags[a.id] ?? {}).take(2).join(' • ');
+        return GestureDetector(onTap: () => widget.onOpen(a, list), onLongPress: () => _actions(a, list), child: Material(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(9), clipBehavior: Clip.antiAlias, child: Stack(fit: StackFit.expand, children: [
+          Thumb(a),
+          if (a.type == AssetType.video) const Positioned(left: 6, bottom: 6, child: CircleAvatar(radius: 13, backgroundColor: Colors.black54, child: Icon(Icons.play_arrow_rounded, color: Colors.white))),
+          if (widget.favorites.contains(a.id)) const Positioned(right: 5, top: 5, child: Icon(Icons.favorite_rounded, color: Colors.white, size: 16)),
+          if (tags.isNotEmpty) Positioned(left: 5, top: 5, right: 25, child: Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(7)), child: Text(tags, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700)))),
+          Positioned(left: 5, right: 5, bottom: 5, child: Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(7)), child: Text(a.type == AssetType.video ? 'VIDEO' : ((a.relativePath ?? '').split('/').where((x) => x.isNotEmpty).isEmpty ? 'Photo' : (a.relativePath ?? '').split('/').where((x) => x.isNotEmpty).last), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700)))),
+        ])));
+      })),
     ]);
   }
+}
 
-class PhotoStatsPage extends StatefulWidget{final List<AssetEntity> photos,videos;final Set<String> favorites,hiddenIds;final Map<String,Set<String>> tags;final List<AssetPathEntity> albums;final Map<String,String> names,captions;const PhotoStatsPage({super.key,required this.photos,required this.videos,required this.favorites,required this.hiddenIds,required this.tags,required this.albums,required this.names,required this.captions});@override State<PhotoStatsPage> createState()=>_PhotoStatsPageState();}
 class _PhotoStatsPageState extends State<PhotoStatsPage>{int bytes=0,measured=0;bool measuring=true;@override void initState(){super.initState();_measure();}Future<void> _measure()async{var b=0,n=0;for(final a in widget.photos){try{final f=await a.file;if(f!=null&&await f.exists()){b+=await f.length();n++;if(mounted&&n%10==0)setState((){bytes=b;measured=n;});}}catch(_){}}if(mounted)setState((){bytes=b;measured=n;measuring=false;});}String _size(int b)=>b>=1073741824?(b/1073741824).toStringAsFixed(2)+' GB':b>=1048576?(b/1048576).toStringAsFixed(1)+' MB':(b/1024).toStringAsFixed(0)+' KB';@override Widget build(BuildContext context){final cs=Theme.of(context).colorScheme;final total=max(1,widget.photos.length);final years=<int>{};final tc=<String,int>{};final folders=<String,int>{};int land=0,port=0,square=0;double px=0;for(final a in widget.photos){years.add(a.createDateTime.year);if(a.width>a.height)land++;else if(a.height>a.width)port++;else square++;px+=a.width*a.height;final folder=(a.relativePath??'Unknown').split('/').where((e)=>e.isNotEmpty).lastOrNull??'Unknown';folders[folder]=(folders[folder]??0)+1;for(final t in widget.tags[a.id]??{})tc[t]=(tc[t]??0)+1;}final tags=tc.entries.toList()..sort((a,b)=>b.value.compareTo(a.value));final topFolders=folders.entries.toList()..sort((a,b)=>b.value.compareTo(a.value));final named=widget.photos.where((a)=>(widget.names[a.id]??'').trim().isNotEmpty).length;final cap=widget.photos.where((a)=>(widget.captions[a.id]??'').trim().isNotEmpty).length;final tagCoverage=(widget.tags.length/total*100).round();final favoriteRate=(widget.favorites.length/total*100).round();final score=((tagCoverage*.35)+(favoriteRate*.15)+(named/total*25)+(cap/total*15)+(years.length.clamp(0,10)/10*10)).round().clamp(0,100);final rec=<String>[];if(tagCoverage<25)rec.add('Tag more memories to make AI Explore more precise.');if(named<total*.2)rec.add('Name important memories for better discovery.');if(cap<total*.15)rec.add('Add captions to preserve context for future stories.');if(widget.favorites.isEmpty)rec.add('Favorite your best memories to create instant highlights.');if(rec.isEmpty)rec.add('Your metadata is healthy. Try AI Explore for smart discovery.');return RefreshIndicator(onRefresh:_measure,child:ListView(padding:const EdgeInsets.fromLTRB(14,14,14,110),children:[Row(children:[const Expanded(child:Text('Photo Intelligence',style:TextStyle(fontSize:29,fontWeight:FontWeight.w900))),Chip(avatar:const Icon(Icons.auto_awesome,size:16),label:const Text('AI'))]),Text('Understand, organize and rediscover your library',style:TextStyle(color:cs.onSurfaceVariant)),const SizedBox(height:18),GridView.count(crossAxisCount:2,shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisSpacing:10,mainAxisSpacing:10,childAspectRatio:1.55,children:[_tile(context,Icons.photo_library_rounded,widget.photos.length.toString(),'Photos'),_tile(context,Icons.video_library_rounded,widget.videos.length.toString(),'Videos'),_tile(context,Icons.favorite_rounded,widget.favorites.length.toString(),'Favorites'),_tile(context,Icons.lock_rounded,widget.hiddenIds.length.toString(),'Private'),_tile(context,Icons.sell_outlined,widget.tags.length.toString(),'Tagged'),_tile(context,Icons.folder_rounded,widget.albums.where((a)=>!a.isAll).length.toString(),'Folders')]),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[const Icon(Icons.psychology_alt_outlined),const SizedBox(width:8),const Text('AI Library Health',style:TextStyle(fontSize:19,fontWeight:FontWeight.w900)),const Spacer(),Text(score.toString()+'/100',style:const TextStyle(fontWeight:FontWeight.w900))]),const SizedBox(height:10),LinearProgressIndicator(value:score.toDouble()/100,minHeight:8,borderRadius:BorderRadius.circular(8)),const SizedBox(height:10),Text(score>=80?'Your library is beautifully organized.':score>=55?'Strong foundation — more metadata will unlock smarter discovery.':'Your memories are rich; tags, names and captions will make them easier to rediscover.'),const SizedBox(height:10),Wrap(spacing:7,children:[Chip(label:Text(tagCoverage.toString()+'% tagged')),Chip(label:Text(favoriteRate.toString()+'% loved')),Chip(label:Text(widget.videos.length.toString()+' videos'))])]))),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('AI recommendations',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),...rec.map((x)=>ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.auto_awesome),title:Text(x)))]))),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('AI story ideas',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),_idea('Favorite memories','A highlight story from your loved photos.'),_idea('Family video diary',widget.videos.isEmpty?'Add videos to build a family video diary.':widget.videos.length.toString()+' videos are ready.'),_idea('Untagged treasure hunt',rec.first)]))),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Library overview',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),Text('Named photos: '+named.toString()),Text('Captions: '+cap.toString()),Text('Date span: '+(years.isEmpty?'—':years.reduce(min).toString()+' → '+years.reduce(max).toString())),Text('Orientation: '+land.toString()+' landscape • '+port.toString()+' portrait • '+square.toString()+' square'),Text('Estimated pixels: '+(px/1000000).toStringAsFixed(0)+' MP'),Text('Folders: '+widget.albums.where((a)=>!a.isAll).length.toString())]))),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Most used tags',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),tags.isEmpty?const Text('No tags yet. Long-press any photo to add them.'):Wrap(spacing:7,runSpacing:7,children:tags.take(15).map((e)=>Chip(label:Text(e.key+' • '+e.value.toString()))).toList())]))),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Top phone folders',style:TextStyle(fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),...topFolders.take(8).map((e)=>ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.folder_outlined),title:Text(e.key),trailing:Text(e.value.toString())))]))),const SizedBox(height:12),Card(child:ListTile(leading:const Icon(Icons.storage_rounded),title:Text(measuring?'Calculating photo storage…':'Photo storage'),subtitle:Text(measuring?measured.toString()+' files measured':_size(bytes)),onTap:_measure))]));}Widget _idea(String t,String s)=>ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.auto_awesome),title:Text(t,style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text(s));Widget _tile(BuildContext c,IconData i,String v,String l){final cs=Theme.of(c).colorScheme;return Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Icon(i,color:cs.primary),const Spacer(),Text(v,style:const TextStyle(fontSize:21,fontWeight:FontWeight.w900)),Text(l,style:TextStyle(fontSize:11,color:cs.onSurfaceVariant))])));}}
 class DeviceAlbumPage extends StatefulWidget {
   final List<AssetPathEntity> paths;
