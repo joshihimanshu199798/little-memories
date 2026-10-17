@@ -4,7 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:math';
 import 'dart:math' as math;
-import 'dart:ui' show lerpDouble;
+import 'dart:ui' show lerpDouble, ImageFilter;
 import 'dart:async';
 import 'package:crypto/crypto.dart';
 import 'package:image/image.dart' as img;
@@ -1431,9 +1431,9 @@ class _HomeState extends State<Home> {
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('YOUR WORLD, IN MOMENTS', style: TextStyle(fontSize: 10, letterSpacing: 2.2, fontWeight: FontWeight.w900, color: cs.primary)),
+              Row(children: [Container(width: 6, height: 6, decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle)), const SizedBox(width: 7), Text('YOUR LIFE, BEAUTIFULLY KEPT', style: TextStyle(fontSize: 9, letterSpacing: 1.8, fontWeight: FontWeight.w900, color: cs.primary))]),
               const SizedBox(height: 7),
-              const Text('Focus on\nthe good.', style: TextStyle(fontSize: 34, height: .98, letterSpacing: -1.5, fontWeight: FontWeight.w900)),
+              Text.rich(const TextSpan(children: [TextSpan(text: 'Focus on\n', style: TextStyle(color: Color(0xFF202923), fontWeight: FontWeight.w900)), TextSpan(text: 'the good.', style: TextStyle(color: Color(0xFF648F7C), fontWeight: FontWeight.w900))]), style: const TextStyle(fontSize: 39, height: .96, letterSpacing: -1.9)),
               const SizedBox(height: 7),
               Text('${visible.length} memories • all your little things', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
             ])),
@@ -1447,7 +1447,7 @@ class _HomeState extends State<Home> {
         )),
         if (featured != null) SliverToBoxAdapter(child: Padding(
           padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
-          child: SizedBox(height: 320, child: Material(
+          child: SizedBox(height: 340, child: Material(
             borderRadius: BorderRadius.circular(30), clipBehavior: Clip.antiAlias, elevation: 0,
             child: InkWell(onTap: () => _openPhoto(featured, visible), child: Stack(fit: StackFit.expand, children: [
               Thumb(featured),
@@ -1468,7 +1468,7 @@ class _HomeState extends State<Home> {
               ])),
               Positioned(right: 13, bottom: 13, child: Container(
                 width: 42, height: 42, decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle),
-                child: const Icon(Icons.arrow_outward_rounded, color: Colors.white))),
+                child: ClipOval(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14), child: Container(width: 46, height: 46, decoration: BoxDecoration(color: Colors.white.withValues(alpha: .22), shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: .62))), child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28))))),
             ])),
           )),
         )),
@@ -1482,7 +1482,7 @@ class _HomeState extends State<Home> {
         SliverToBoxAdapter(child: SizedBox(height: 118, child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 18), scrollDirection: Axis.horizontal,
           children: [
-            SizedBox(width: 152, child: collectionCard('Favorites', '${favoritePhotos.length} saved moments', Icons.favorite_rounded, const Color(0xFF9A4C69),
+            SizedBox(width: 150, child: collectionCard('Favorites', '${favoritePhotos.length} saved moments', Icons.favorite_rounded, const Color(0xFF9A4C69),
               () => setState(() { tab = 0; showAllPhotos = true; galleryFilter = 1; } ), photo: favoritePhotos.isEmpty ? null : favoritePhotos.first)),
             const SizedBox(width: 10),
             SizedBox(width: 152, child: collectionCard('Videos', '$videoCount moving memories', Icons.play_circle_fill_rounded, const Color(0xFF3F6B77),
@@ -1519,7 +1519,7 @@ class _HomeState extends State<Home> {
         )) else SliverPadding(
           padding: const EdgeInsets.fromLTRB(8, 0, 8, 30),
           sliver: SliverMasonryGrid.count(
-            crossAxisCount: grid.clamp(2, 8), mainAxisSpacing: 7, crossAxisSpacing: 7,
+            crossAxisCount: grid.clamp(2, 8), mainAxisSpacing: 8, crossAxisSpacing: 8,
             childCount: visible.length.clamp(0, 12),
             itemBuilder: (context, index) {
               final a = visible[index];
@@ -1527,7 +1527,7 @@ class _HomeState extends State<Home> {
               return GestureDetector(
                 onTap: () => _openPhoto(a, visible),
                 onLongPress: () => _showPhotoActions(a, visible),
-                child: ClipRRect(borderRadius: BorderRadius.circular(17), child: AspectRatio(
+                child: ClipRRect(borderRadius: BorderRadius.circular(13), child: AspectRatio(
                   aspectRatio: ratio, child: Stack(fit: StackFit.expand, children: [
                     Thumb(a),
                     DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter,
@@ -2250,7 +2250,7 @@ class _HomeState extends State<Home> {
       ) : null,
       bottomNavigationBar: selectionMode
           ? null
-          : NavigationBar(
+          : Padding(padding: const EdgeInsets.fromLTRB(10, 0, 10, 8), child: ClipRRect(borderRadius: BorderRadius.circular(25), child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16), child: Container(decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface.withValues(alpha: .78), border: Border.all(color: Colors.white.withValues(alpha: .65)), borderRadius: BorderRadius.circular(25), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .08), blurRadius: 24, offset: const Offset(0, 8))]), child: NavigationBar(
         selectedIndex: tab,
         onDestinationSelected: (v) {
           setState(() { tab = v; if (v == 0) showAllPhotos = false; });
@@ -2263,7 +2263,7 @@ class _HomeState extends State<Home> {
           NavigationDestination(icon: Icon(Icons.insights_outlined), selectedIcon: Icon(Icons.insights_rounded), label: 'Stats'),
           NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings'),
         ],
-      ),
+      )))),
     );
   }
 }
