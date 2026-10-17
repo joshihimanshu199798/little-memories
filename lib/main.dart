@@ -1468,7 +1468,7 @@ class _HomeState extends State<Home> {
               ])),
               Positioned(right: 13, bottom: 13, child: Container(
                 width: 42, height: 42, decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle),
-                child: ClipOval(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14), child: Container(width: 46, height: 46, decoration: BoxDecoration(color: Colors.white.withValues(alpha: .22), shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: .62))), child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28))))),
+                child: ClipOval(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14), child: Container(width: 42, height: 42, alignment: Alignment.center, decoration: BoxDecoration(color: Colors.white.withValues(alpha: .22), shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: .62))), child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28)))),
             ])),
           )),
         )),
@@ -2263,7 +2263,7 @@ class _HomeState extends State<Home> {
           NavigationDestination(icon: Icon(Icons.insights_outlined), selectedIcon: Icon(Icons.insights_rounded), label: 'Stats'),
           NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings'),
         ],
-      )))),
+      ))))),
     );
   }
 }
