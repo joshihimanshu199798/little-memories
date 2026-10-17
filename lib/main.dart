@@ -2032,7 +2032,7 @@ class _HomeState extends State<Home> {
     final maxColumns = grid.clamp(2, 8).toInt();
     final responsiveColumns = maxColumns;
     return RefreshIndicator(onRefresh: _refreshPhotos, child: MasonryGridView.count(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 28), crossAxisCount: responsiveColumns, crossAxisSpacing: Theme.of(context).extension<DesignTokens>()?.gridSpacing ?? 7, mainAxisSpacing: Theme.of(context).extension<DesignTokens>()?.gridSpacing ?? 7,
+      padding: const EdgeInsets.fromLTRB(6, 2, 6, 20), crossAxisCount: responsiveColumns, crossAxisSpacing: Theme.of(context).extension<DesignTokens>()?.gridSpacing ?? 7, mainAxisSpacing: Theme.of(context).extension<DesignTokens>()?.gridSpacing ?? 7,
       itemCount: source.length,
       itemBuilder: (_, i) {
         final a = source[i], fav = favorites.contains(a.id);
@@ -2140,21 +2140,22 @@ class _HomeState extends State<Home> {
     }
     final galleryBody = showAllPhotos
       ? Column(children: [
-          Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 4), child: Row(children: [
-            IconButton(onPressed: () => setState(() => showAllPhotos = false), icon: const Icon(Icons.arrow_back)),
-            const Expanded(child: Text('All memories', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800))),
-          ])),
-          Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 6), child: TextField(
+          Padding(padding: const EdgeInsets.fromLTRB(8, 0, 8, 0), child: SizedBox(height: 42, child: Row(children: [
+            IconButton(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact, onPressed: () => setState(() => showAllPhotos = false), icon: const Icon(Icons.arrow_back)),
+            const Expanded(child: Text('All memories', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800))),
+          ]))),
+          Padding(padding: const EdgeInsets.fromLTRB(10, 0, 10, 3), child: TextField(
             controller: searchController,
             onChanged: (v) => setState(() => searchQuery = v),
             decoration: InputDecoration(
+              isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 10),
               hintText: 'Search memories',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: searchQuery.isEmpty ? null : IconButton(onPressed: () { searchController.clear(); setState(() => searchQuery = ''); }, icon: const Icon(Icons.clear)),
               filled: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
             ),
           )),
-          Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 4), child: Row(children: [
+          Padding(padding: const EdgeInsets.fromLTRB(8, 0, 6, 0), child: SizedBox(height: 38, child: Row(children: [
             Expanded(child: Text(photos.length.toString() + ' memories', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600))),
             IconButton(tooltip:'Select multiple photos',onPressed:()=>setState(()=>selectionMode=true),icon:const Icon(Icons.checklist_rounded)),
             IconButton(tooltip: galleryNewestFirst ? 'Showing newest first' : 'Showing oldest first', onPressed: () async { setState(() => galleryNewestFirst = !galleryNewestFirst); await _save(); }, icon: Icon(galleryNewestFirst ? Icons.south_rounded : Icons.north_rounded)),
@@ -2169,12 +2170,12 @@ class _HomeState extends State<Home> {
             IconButton(tooltip: galleryShowNames ? 'Hide names' : 'Show names', onPressed: () async { setState(() => galleryShowNames = !galleryShowNames); await _save(); }, icon: Icon(galleryShowNames ? Icons.text_fields : Icons.text_fields_outlined)),
             IconButton(tooltip: 'Add photos', onPressed: _importPhotos, icon: const Icon(Icons.add_photo_alternate_outlined)),
             PopupMenuButton<int>(tooltip: 'Grid size', initialValue: grid, onSelected: (v) async { setState(() => grid = v); await _save(); }, itemBuilder: (_) => [2,3,4,5,6,7,8].map((v) => PopupMenuItem(value: v, child: Text('$v columns'))).toList(), child: const Icon(Icons.grid_view_rounded)),
-          ])),
-          SizedBox(height: 42, child: ListView(
+          ]))),
+          SizedBox(height: 36, child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 12), scrollDirection: Axis.horizontal,
             children: [
               for (final f in const [0, 1, 2, 3, 4, 5])
-                Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(
+                Padding(padding: const EdgeInsets.only(right: 6), child: ChoiceChip(
                   label: Text(['All', 'Favorites', 'Named', 'Captions', 'In stories', 'Tagged'][f]),
                   selected: galleryFilter == f,
                   onSelected: (_) async { setState(() => galleryFilter = f); await _save(); },
@@ -2199,6 +2200,7 @@ class _HomeState extends State<Home> {
     );
     return Scaffold(
       appBar: tab == 0 && !showAllPhotos && !selectionMode ? null : AppBar(
+        toolbarHeight: tab == 0 && showAllPhotos ? 44 : null,
         title: selectionMode ? Text('${selectedIds.length} selected', style: const TextStyle(fontWeight: FontWeight.w800)) : const Text('Little Memories', style: TextStyle(fontWeight: FontWeight.w800)),
         leading: selectionMode ? IconButton(onPressed: _clearSelection, icon: const Icon(Icons.close)) : null,
         actions: selectionMode
