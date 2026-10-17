@@ -252,7 +252,7 @@ class DesignTokens extends ThemeExtension<DesignTokens> {
 const designAccentColors=<Color>[Color(0xFFE85D75),Color(0xFF6750A4),Color(0xFF006A60),Color(0xFF0061A4),Color(0xFF9C4146),Color(0xFF7B5800),Color(0xFF526600),Color(0xFF444746),Color(0xFFB3261E)];
 const designAccentNames=<String>['Rose','Violet','Teal','Ocean','Berry','Amber','Olive','Graphite','Red'];
 const comicThemes=<ComicTheme>[
-  ComicTheme('Comic Pop','Playful bubbles, stickers and bold panels','sans-serif-rounded',Color(0xFFE85D75),Color(0xFFFFF8F0),Color(0xFFFFFFFF),24,0,26,0),
+  ComicTheme('Editorial','Monochrome editorial, bold labels and framed memories','sans-serif',Color(0xFF202024),Color(0xFFF1F0EE),Color(0xFFFAF9F7),14,0,14,9),
   ComicTheme('Scrapbook','Paper layers, tape and handmade memories','serif',Color(0xFFB86B45),Color(0xFFF5EBDD),Color(0xFFFFFCF5),14,3,14,1),
   ComicTheme('Watercolor','Soft gallery, airy cards and painted mood','sans-serif',Color(0xFF4C8DCE),Color(0xFFF2F8FB),Color(0xFFFFFFFF),26,2,28,2),
   ComicTheme('Polaroid','Film frames, compact cards and photo-book feel','sans-serif',Color(0xFF6B6258),Color(0xFFECE7DE),Color(0xFFFFFEFA),8,1,10,3),
@@ -286,25 +286,39 @@ class _AppState extends State<LittleMemoriesApp> {
   Future<void> _saveDesign(String key, Object value) async {final p=await SharedPreferences.getInstance();if(value is int)await p.setInt(key,value);else if(value is double)await p.setDouble(key,value);else if(value is bool)await p.setBool(key,value);}
   ThemeData _theme(ComicTheme t,bool isDark,{ColorScheme? dynamicScheme}){
     final seed=accentIndex>=0?designAccentColors[accentIndex]:t.seed;
-    final scheme=dynamicScheme??ColorScheme.fromSeed(seedColor:seed,brightness:isDark?Brightness.dark:Brightness.light);
+    final scheme = t.style == 9
+        ? (isDark
+            ? const ColorScheme.dark(
+                primary: Color(0xFFF2F0ED), onPrimary: Color(0xFF202024),
+                secondary: Color(0xFFD1CFCC), onSecondary: Color(0xFF202024),
+                surface: Color(0xFF19191C), onSurface: Color(0xFFF3F1EE),
+                outline: Color(0xFF777571), outlineVariant: Color(0xFF4B4A48),
+              )
+            : const ColorScheme.light(
+                primary: Color(0xFF202024), onPrimary: Color(0xFFFFFFFF),
+                secondary: Color(0xFF4A4947), onSecondary: Color(0xFFFFFFFF),
+                surface: Color(0xFFFAF9F7), onSurface: Color(0xFF202024),
+                outline: Color(0xFF393836), outlineVariant: Color(0xFFD0CECA),
+              ))
+        : (dynamicScheme ?? ColorScheme.fromSeed(seedColor:seed,brightness:isDark?Brightness.dark:Brightness.light));
     final text=ThemeData(useMaterial3:true).textTheme.apply(fontFamily:t.fontFamily,bodyColor:scheme.onSurface,displayColor:scheme.onSurface);
     final radius=cornerRadius;
-    final background=dynamicScheme?.surface??t.background;
-    final surface=dynamicScheme?.surfaceContainerLow??t.surface;
-    final card=RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==3 ? .22 : .16),width:t.style==0?2:1));
-    final button=RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius+2),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==0 ? .7 : .25),width:t.style==0?1.5:1));
+    final background=t.style == 9 ? (isDark ? const Color(0xFF111113) : const Color(0xFFF1F0EE)) : (dynamicScheme?.surface??t.background);
+    final surface=t.style == 9 ? (isDark ? const Color(0xFF1D1D20) : const Color(0xFFFAF9F7)) : (dynamicScheme?.surfaceContainerLow??t.surface);
+    final card=RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius),side:BorderSide(color:t.style == 9 ? scheme.onSurface.withValues(alpha:.72) : scheme.primary.withValues(alpha:t.style==3 ? .22 : .16),width:t.style==9 ? 1.15 : t.style==0?2:1));
+    final button=RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius+2),side:BorderSide(color:scheme.primary.withValues(alpha:t.style==9 ? 1 : t.style==0 ? .7 : .25),width:t.style==9 ? 1.2 : t.style==0?1.5:1));
     return ThemeData(
       useMaterial3:true,colorScheme:scheme,scaffoldBackgroundColor:background,textTheme:text,
       extensions:<ThemeExtension<dynamic>>[DesignTokens(gridSpacing:gridSpacing,cornerRadius:cornerRadius,typographyScale:typographyScale)],
-      visualDensity:t.style==5?VisualDensity.compact:VisualDensity.standard,
+      visualDensity:(t.style==5 || t.style==9)?VisualDensity.compact:VisualDensity.standard,
       cardTheme:CardThemeData(color:surface,elevation:t.cardElevation,margin:EdgeInsets.zero,clipBehavior:Clip.antiAlias,shape:card),
-      appBarTheme:AppBarTheme(backgroundColor:background,surfaceTintColor:Colors.transparent,foregroundColor:scheme.onSurface,elevation:t.style==1?1:0,centerTitle:t.style==3||t.style==4,titleTextStyle:text.titleLarge?.copyWith(fontWeight:FontWeight.w900)),
+      appBarTheme:AppBarTheme(backgroundColor:background,surfaceTintColor:Colors.transparent,foregroundColor:scheme.onSurface,elevation:0,centerTitle:t.style==3||t.style==4,titleTextStyle:text.titleLarge?.copyWith(fontWeight:FontWeight.w900,letterSpacing:t.style==9 ? -.55 : 0)),
       navigationBarTheme:NavigationBarThemeData(height:t.style==0?78:72,backgroundColor:t.style==4?surface:background,elevation:t.style==0?3:0,indicatorColor:scheme.primary.withValues(alpha:.18),indicatorShape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==0?24:radius)),labelBehavior:t.style==5?NavigationDestinationLabelBehavior.alwaysShow:NavigationDestinationLabelBehavior.onlyShowSelected),
       filledButtonTheme:FilledButtonThemeData(style:FilledButton.styleFrom(minimumSize:const Size(0,48),padding:const EdgeInsets.symmetric(horizontal:18,vertical:13),textStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w800),shape:button)),
       outlinedButtonTheme:OutlinedButtonThemeData(style:OutlinedButton.styleFrom(minimumSize:const Size(0,48),textStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w800),shape:button)),
       textButtonTheme:TextButtonThemeData(style:TextButton.styleFrom(textStyle:TextStyle(fontFamily:t.fontFamily,fontWeight:FontWeight.w800),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius)))),
-      inputDecorationTheme:InputDecorationTheme(filled:true,fillColor:surface,contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:14),border:OutlineInputBorder(borderRadius:BorderRadius.circular(radius),borderSide:BorderSide(color:scheme.outlineVariant)),enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(radius),borderSide:BorderSide(color:scheme.outlineVariant)),focusedBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(radius),borderSide:BorderSide(color:scheme.primary,width:2))),
-      chipTheme:ChipThemeData(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==0?22:radius),side:BorderSide(color:scheme.outlineVariant)),side:BorderSide(color:scheme.outlineVariant)),
+      inputDecorationTheme:InputDecorationTheme(filled:true,fillColor:surface,contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:14),border:OutlineInputBorder(borderRadius:BorderRadius.circular(radius),borderSide:BorderSide(color:t.style==9?scheme.onSurface:scheme.outlineVariant,width:t.style==9?1.1:1)),enabledBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(radius),borderSide:BorderSide(color:t.style==9?scheme.onSurface:scheme.outlineVariant,width:t.style==9?1.1:1)),focusedBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(radius),borderSide:BorderSide(color:scheme.primary,width:1.6))),
+      chipTheme:ChipThemeData(backgroundColor:t.style==9?surface:null,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(t.style==0?22:radius),side:BorderSide(color:t.style==9?scheme.onSurface:scheme.outlineVariant)),side:BorderSide(color:t.style==9?scheme.onSurface:scheme.outlineVariant),labelStyle:TextStyle(fontWeight:FontWeight.w700,letterSpacing:t.style==9?.15:0)),
       listTileTheme:ListTileThemeData(shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius))),
       dialogTheme:DialogThemeData(backgroundColor:surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(radius+4))),
       bottomSheetTheme:BottomSheetThemeData(backgroundColor:surface,shape:RoundedRectangleBorder(borderRadius:BorderRadius.vertical(top:Radius.circular(radius+8)))),
