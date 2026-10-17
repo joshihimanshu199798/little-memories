@@ -2309,6 +2309,7 @@ class _PhotoSearchPageState extends State<PhotoSearchPage> {
   late TextEditingController c;
   String q = '';
   bool favOnly = false;
+  AssetEntity? similarTo;
   bool advanced = false;
   int filter = 0;
   int mediaFilter = 0;
@@ -2355,6 +2356,13 @@ class _PhotoSearchPageState extends State<PhotoSearchPage> {
     final wantsLandscape = filter == 3 || tokens.contains('landscape') || tokens.contains('landscapes');
     final wantsPortrait = filter == 4 || tokens.contains('portrait');
 
+    if (similarTo != null) {
+      final target = similarTo!;
+      all.removeWhere((a) => a.id != target.id &&
+        (a.type != target.type || (a.width > a.height) != (target.width > target.height) ||
+         (a.relativePath ?? '').split('/').where((e) => e.isNotEmpty).lastOrNull !=
+         (target.relativePath ?? '').split('/').where((e) => e.isNotEmpty).lastOrNull));
+    }
     if (wantsFavorite) all.removeWhere((a) => !widget.favorites.contains(a.id));
     if (wantsTagged) all.removeWhere((a) => (widget.tags[a.id] ?? {}).isEmpty);
     if (filter == 2 || tokens.contains('thisyear') || tokens.contains('this-year')) {
@@ -2450,12 +2458,56 @@ class _PhotoSearchPageState extends State<PhotoSearchPage> {
     setState(() => q = value);
   }
 
+  bool _isDocumentLike(AssetEntity a) {
+    final text = '${a.title ?? ''} ${a.relativePath ?? ''} ${widget.names[a.id] ?? ''} ${widget.captions[a.id] ?? ''}'.toLowerCase();
+    return RegExp(r'python|code|screenshot|certificate|udemy|receipt|invoice|document|bill|course').hasMatch(text);
+  }
+
+  Future<void> _findSimilar(AssetEntity a) async {
+    setState(() { similarTo = a; q = ''; c.clear(); favOnly = false; filter = 0; mediaFilter = 0; });
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Showing visually similar memories by orientation, media type and folder.')));
+  }
+
+  Future<void> _extractData(AssetEntity a) async {
+    final name = (widget.names[a.id] ?? '').trim();
+    final title = (a.title ?? '').trim();
+    final folder = (a.relativePath ?? '').split('/').where((e) => e.isNotEmpty).lastOrNull ?? 'Unknown';
+    await showDialog<void>(context: context, builder: (ctx) => AlertDialog(
+      title: const Row(children: [Icon(Icons.document_scanner_outlined), SizedBox(width: 10), Expanded(child: Text('Extract Data'))]),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Metadata preview from this memory:'), const SizedBox(height: 12),
+        _metadataLine('File title', title.isEmpty ? 'Not available' : title),
+        _metadataLine('Saved name', name.isEmpty ? 'Not named' : name),
+        _metadataLine('Folder', folder),
+        _metadataLine('Date', a.createDateTime.toLocal().toString().split('.').first),
+        _metadataLine('Dimensions', '${a.width} × ${a.height}'),
+        const SizedBox(height: 8),
+        const Text('Text OCR is not connected yet; this preview uses available photo metadata.', style: TextStyle(fontSize: 12)),
+      ]),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+    ));
+  }
+
+  Widget _metadataLine(String label, String value) => Padding(padding: const EdgeInsets.only(bottom: 7), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [SizedBox(width: 94, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12))), Expanded(child: Text(value, style: const TextStyle(fontSize: 12)))]));
+
   Future<void> _actions(AssetEntity a, List<AssetEntity> list) {
     return showModalBottomSheet(
       context: context,
       showDragHandle: true,
       builder: (_) => SafeArea(
         child: Wrap(children: [
+          ListTile(
+            leading: const Icon(Icons.auto_awesome_rounded),
+            title: const Text('Find More Like This'),
+            subtitle: const Text('Match orientation, media type and folder'),
+            onTap: () { Navigator.pop(context); _findSimilar(a); },
+          ),
+          if (_isDocumentLike(a)) ListTile(
+            leading: const Icon(Icons.document_scanner_outlined),
+            title: const Text('Extract Data'),
+            subtitle: const Text('Preview available metadata'),
+            onTap: () { Navigator.pop(context); _extractData(a); },
+          ),
           ListTile(
             leading: const Icon(Icons.open_in_full_rounded),
             title: const Text('Open memory'),
@@ -2508,6 +2560,32 @@ class _PhotoSearchPageState extends State<PhotoSearchPage> {
     );
   }
 
+  List<(String, IconData)> _contextActions(String query) {
+    final x = query.toLowerCase();
+    if (RegExp(r'portrait|face|person|people|smil|sarthak|family').hasMatch(x)) return [('Enhance Face', Icons.face_retouching_natural_rounded), ('Portrait Restore', Icons.auto_fix_high_rounded), ('Find More Like This', Icons.auto_awesome_rounded)];
+    if (RegExp(r'landscape|mountain|forest|nature|park|lake|scenery').hasMatch(x)) return [('Magic Eraser', Icons.auto_fix_high_rounded), ('Find More Like This', Icons.auto_awesome_rounded)];
+    if (RegExp(r'document|receipt|invoice|bill|python|code|screenshot|certificate|course|text').hasMatch(x)) return [('Extract Text', Icons.document_scanner_outlined), ('Find More Like This', Icons.auto_awesome_rounded)];
+    if (RegExp(r'food|meal|vegetarian|restaurant|lunch|dinner').hasMatch(x)) return [('Find Similar Meals', Icons.restaurant_rounded), ('Find More Like This', Icons.auto_awesome_rounded)];
+    return [('Find Duplicates', Icons.copy_all_rounded), ('Find More Like This', Icons.auto_awesome_rounded)];
+  }
+
+  Widget _storyCard(String title, String subtitle, List<AssetEntity> assets, int variant, VoidCallback onTap) {
+    final a = assets[(variant * 3).clamp(0, assets.length - 1)];
+    final b = assets[(variant * 3 + 1).clamp(0, assets.length - 1)];
+    final cs = Theme.of(context).colorScheme;
+    return Padding(padding: const EdgeInsets.only(right: 10, bottom: 3), child: SizedBox(width: 226, child: InkWell(
+      borderRadius: BorderRadius.circular(15), onTap: onTap,
+      child: Container(decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(15), border: Border.all(color: cs.outlineVariant.withValues(alpha: .65)), boxShadow: [BoxShadow(color: cs.shadow.withValues(alpha: .06), blurRadius: 12, offset: const Offset(0, 4))]), child: Stack(children: [
+        Positioned(right: 10, top: 12, child: Transform.rotate(angle: .08, child: SizedBox(width: 83, height: 105, child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Thumb(b))))),
+        Positioned(left: 12, top: 10, child: Transform.rotate(angle: -.07, child: SizedBox(width: 90, height: 109, child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Thumb(a))))),
+        Positioned(left: 12, right: 8, bottom: 9, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(20)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.auto_awesome, size: 10, color: Colors.white), SizedBox(width: 3), Text('AI STORY', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .6))])),
+          const SizedBox(height: 4), Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12)), Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
+        ])),
+      ])),
+    )));
+  }
+
   @override Widget build(BuildContext context) {
     final list = results;
     final cs = Theme.of(context).colorScheme;
@@ -2548,6 +2626,40 @@ class _PhotoSearchPageState extends State<PhotoSearchPage> {
       SizedBox(height: 35, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 14), children: [
         for (final item in chips) Padding(padding: const EdgeInsets.only(right: 8), child: ActionChip(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 3), label: Text(item.$1, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)), onPressed: () { c.text = item.$2; setState(() => q = item.$2); })),
       ])),
+      if (q.isEmpty && similarTo == null && !favOnly && widget.photos.isNotEmpty) SizedBox(
+        height: 151,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(padding: const EdgeInsets.fromLTRB(14, 4, 14, 8), child: Row(children: [
+            const Icon(Icons.auto_awesome_rounded, size: 15), const SizedBox(width: 6),
+            const Expanded(child: Text('AI CURATED STORIES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5))),
+            Text('Made from your library', style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
+          ])),
+          Expanded(child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 14), children: [
+            _storyCard('Family Gatherings', 'Little moments, together', widget.photos, 0, () => _runQuick('family')),
+            _storyCard('Custom Artwork & Designs', 'Things you created', widget.photos, 1, () => _runQuick('artwork')),
+            _storyCard('Natural History Museum Trips', 'Curiosity, captured', widget.photos, 2, () => _runQuick('museum')),
+          ])),
+        ]),
+      ),
+      if (q.isNotEmpty || similarTo != null || favOnly) SizedBox(
+        height: 43,
+        child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 14), children: [
+          for (final action in _contextActions(q)) Padding(padding: const EdgeInsets.only(right: 8), child: ActionChip(
+            avatar: Icon(action.$2, size: 15),
+            label: Text(action.$1, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+            onPressed: () {
+              if (action.$1 == 'Find More Like This') {
+                if (list.isNotEmpty) _findSimilar(list.first);
+              } else if (action.$1 == 'Extract Text') {
+                if (list.isNotEmpty) _extractData(list.first);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${action.$1} is a preview action; connect an image-processing service to enable it.')));
+              }
+            },
+          )),
+          if (similarTo != null) Padding(padding: const EdgeInsets.only(right: 8), child: ActionChip(avatar: const Icon(Icons.close, size: 15), label: const Text('Clear similarity'), onPressed: () => setState(() => similarTo = null))),
+        ]),
+      ),
       if (history.isNotEmpty && q.isEmpty) SizedBox(height: 27, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 14), children: [
         for (final item in history.take(5)) Padding(padding: const EdgeInsets.only(right: 7), child: InkWell(borderRadius: BorderRadius.circular(12), onTap: () => _runQuick(item), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4), child: Text(item, style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant))))),
       ])),
@@ -2562,10 +2674,11 @@ class _PhotoSearchPageState extends State<PhotoSearchPage> {
         const Icon(Icons.search_off_rounded, size: 48), const SizedBox(height: 8), const Text('No memories matched', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)), const SizedBox(height: 5), const Text('Try a year, folder, tag, favorite, video or date', textAlign: TextAlign.center),
       ])) : GridView.builder(padding: const EdgeInsets.fromLTRB(8, 2, 8, 24), gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: localGrid.clamp(2, 8), crossAxisSpacing: 8, mainAxisSpacing: 8), itemCount: list.length, itemBuilder: (_, i) {
         final a = list[i]; final tags = (widget.tags[a.id] ?? {}).take(2).join(' • ');
-        return GestureDetector(onTap: () => widget.onOpen(a, list), onLongPress: () => _actions(a, list), child: Material(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(9), clipBehavior: Clip.antiAlias, child: Stack(fit: StackFit.expand, children: [
+        return GestureDetector(onTap: () => widget.onOpen(a, list), onLongPress: () => _actions(a, list), child: Material(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(12), clipBehavior: Clip.antiAlias, child: Stack(fit: StackFit.expand, children: [
           Thumb(a),
           if (a.type == AssetType.video) const Positioned(left: 6, bottom: 6, child: CircleAvatar(radius: 13, backgroundColor: Colors.black54, child: Icon(Icons.play_arrow_rounded, color: Colors.white))),
           if (widget.favorites.contains(a.id)) const Positioned(right: 5, top: 5, child: Icon(Icons.favorite_rounded, color: Colors.white, size: 16)),
+          if (_isDocumentLike(a)) const Positioned(left: 5, top: 5, child: Icon(Icons.document_scanner_outlined, color: Colors.white, size: 17)),
           if (tags.isNotEmpty) Positioned(left: 5, top: 5, right: 25, child: Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(7)), child: Text(tags, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700)))),
           Positioned(left: 5, right: 5, bottom: 5, child: Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(7)), child: Text(a.type == AssetType.video ? 'VIDEO' : ((a.relativePath ?? '').split('/').where((x) => x.isNotEmpty).isEmpty ? 'Photo' : (a.relativePath ?? '').split('/').where((x) => x.isNotEmpty).last), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700)))),
         ])));
