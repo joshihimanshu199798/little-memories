@@ -249,19 +249,13 @@ class DesignTokens extends ThemeExtension<DesignTokens> {
     return DesignTokens(gridSpacing: lerpDouble(gridSpacing, other.gridSpacing, t) ?? gridSpacing, cornerRadius: lerpDouble(cornerRadius, other.cornerRadius, t) ?? cornerRadius, typographyScale: lerpDouble(typographyScale, other.typographyScale, t) ?? typographyScale);
   }
 }
-const designAccentColors=<Color>[Color(0xFFE85D75),Color(0xFF6750A4),Color(0xFF006A60),Color(0xFF0061A4),Color(0xFF9C4146),Color(0xFF7B5800),Color(0xFF526600),Color(0xFF444746),Color(0xFFB3261E)];
-const designAccentNames=<String>['Rose','Violet','Teal','Ocean','Berry','Amber','Olive','Graphite','Red'];
+const designAccentColors=<Color>[Color(0xFF3659C9),Color(0xFF28745B),Color(0xFFB84B32),Color(0xFF9B91FF),Color(0xFF087E8B),Color(0xFFB83280),Color(0xFF7A5AF8),Color(0xFF475569)];
+const designAccentNames=<String>['Cobalt','Sage','Coral','Lavender','Teal','Berry','Violet','Slate'];
 const comicThemes=<ComicTheme>[
-  ComicTheme('Editorial','Monochrome editorial, bold labels and framed memories','sans-serif',Color(0xFF202024),Color(0xFFF1F0EE),Color(0xFFFAF9F7),14,0,14,9),
-  ComicTheme('Scrapbook','Paper layers, tape and handmade memories','serif',Color(0xFFB86B45),Color(0xFFF5EBDD),Color(0xFFFFFCF5),14,3,14,1),
-  ComicTheme('Watercolor','Soft gallery, airy cards and painted mood','sans-serif',Color(0xFF4C8DCE),Color(0xFFF2F8FB),Color(0xFFFFFFFF),26,2,28,2),
-  ComicTheme('Polaroid','Film frames, compact cards and photo-book feel','sans-serif',Color(0xFF6B6258),Color(0xFFECE7DE),Color(0xFFFFFEFA),8,1,10,3),
-  ComicTheme('Midnight','Cinematic dark gallery with glowing accents','sans-serif',Color(0xFF8B7CFF),Color(0xFF090B14),Color(0xFF151927),18,2,20,4),
-  ComicTheme('Minimal','Clean editorial layout and calm spacing','sans-serif',Color(0xFF3D6B5B),Color(0xFFF7F8F6),Color(0xFFFFFFFF),12,0,12,5),
-  ComicTheme('Aurora','Iridescent night, glass panels and luminous accents','sans-serif',Color(0xFF6C63FF),Color(0xFF0B1020),Color(0xFF151C32),26,3,28,6),
-  ComicTheme('Sage Garden','Natural greens, warm paper and calm organic shapes','sans-serif',Color(0xFF3E8064),Color(0xFFF1F5EE),Color(0xFFFFFEFA),20,2,22,7),
-  ComicTheme('Sunset Film','Warm film tones, bold type and photo-journal energy','sans-serif',Color(0xFFE36B3D),Color(0xFFFFF2E8),Color(0xFFFFFBF7),16,2,18,8),
-  ComicTheme('Mono Studio','Black, white and graphite with a premium gallery feel','sans-serif',Color(0xFF22252A),Color(0xFFF3F4F6),Color(0xFFFFFFFF),10,1,12,9),
+  ComicTheme('Clean Studio','High-contrast, distraction-free photo gallery','sans-serif',Color(0xFF3659C9),Color(0xFFF5F7FC),Color(0xFFFFFFFF),16,0,16,5),
+  ComicTheme('Sage Garden','Warm paper, natural greens and calm organic surfaces','sans-serif',Color(0xFF28745B),Color(0xFFF3F6EF),Color(0xFFFFFEFA),20,1,20,7),
+  ComicTheme('Sunset Film','Warm ivory surfaces with coral accents and photo-journal energy','sans-serif',Color(0xFFB84B32),Color(0xFFFFF5EF),Color(0xFFFFFFFF),16,1,18,8),
+  ComicTheme('Midnight','Cinematic dark gallery with readable luminous accents','sans-serif',Color(0xFF9B91FF),Color(0xFF0D111B),Color(0xFF191F2D),18,1,20,4),
 ];
 
 class LittleMemoriesApp extends StatefulWidget {
@@ -1805,9 +1799,9 @@ class _HomeState extends State<Home> {
     return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(22), child: Container(
       height: 104, padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [cs.primaryContainer, cs.surface]),
+        color: cs.surfaceContainerLow,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: cs.outlineVariant),
+        border: Border.all(color: cs.primary.withValues(alpha:.22), width: 1.2),
       ),
       child: Row(children: [
         Container(width: 44, height: 44, decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(15)), child: Icon(icon, color: cs.onPrimary)),
