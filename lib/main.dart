@@ -1421,7 +1421,7 @@ class _HomeState extends State<Home> {
     await Navigator.push(context, MaterialPageRoute(builder: (_) => GrowingMemoryTimelinePage(
       photos: photos.where((a) => !hiddenIds.contains(a.id) && !deletedIds.contains(a.id)).toList(),
       initialProfiles: personPhotoIds.map((k, v) => MapEntry(k, v.toSet())),
-      onSave: (profiles) async { setState(() => personPhotoIds = profiles.map((k, v) => MapEntry(k, v.toSet())); await _save(); },
+      onSave: (profiles) async { setState(() => personPhotoIds = profiles.map((k, v) => MapEntry(k, v.toSet()))); await _save(); },
       onOpen: (asset, list) => _openPhoto(asset, list),
     )));
   }
