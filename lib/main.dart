@@ -363,6 +363,7 @@ class _HomeState extends State<Home> {
   bool selectionMode = false;
   Set<String> selectedIds = {};
   Map<String,List<String>> memoryAlbums = {};
+  Map<String, Set<String>> personPhotoIds = {};
   String childName = 'My Little Star', childBirthday = '';  String searchQuery = '';
   bool showAllPhotos = false;
   Set<String> hiddenIds = {};
@@ -381,6 +382,8 @@ class _HomeState extends State<Home> {
     final p = await SharedPreferences.getInstance();
 
     // Load user state first so the UI can be configured immediately.
+    final peopleRaw = p.getString('personPhotoIds');
+    if (peopleRaw != null) { try { personPhotoIds = (jsonDecode(peopleRaw) as Map<String, dynamic>).map((k, v) => MapEntry(k, List<String>.from(v as List).toSet())); } catch (_) { personPhotoIds = {}; } }
     final raw = p.getString('timelines');
     if (raw != null) timelines = (jsonDecode(raw) as List).map((e) => Timeline.fromJson(e)).toList();
     favorites = (p.getStringList('favorites') ?? const []).toSet();
@@ -587,6 +590,7 @@ class _HomeState extends State<Home> {
     await p.setString('childName', childName);
     await p.setString('childBirthday', childBirthday);
     await p.setString('memoryAlbums', jsonEncode(memoryAlbums));
+    await p.setString('personPhotoIds', jsonEncode(personPhotoIds.map((k, v) => MapEntry(k, v.toList()))));
   }
 
   AssetEntity? _find(String id) {
@@ -1413,6 +1417,15 @@ class _HomeState extends State<Home> {
     ]);
   }
 
+  Future<void> _openPeopleTimeline() async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => GrowingMemoryTimelinePage(
+      photos: photos.where((a) => !hiddenIds.contains(a.id) && !deletedIds.contains(a.id)).toList(),
+      initialProfiles: personPhotoIds.map((k, v) => MapEntry(k, v.toSet())),
+      onSave: (profiles) async { setState(() => personPhotoIds = profiles.map((k, v) => MapEntry(k, v.toSet())); await _save(); },
+      onOpen: (asset, list) => _openPhoto(asset, list),
+    )));
+  }
+
   Future<void> _customizeHome() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -1530,8 +1543,9 @@ class _HomeState extends State<Home> {
               ]),
               const SizedBox(height: 14),
               Row(children: [
-                Expanded(child: FilledButton.icon(onPressed: () => setState(() { showAllPhotos = true; searchQuery = ''; }), icon: const Icon(Icons.grid_view_rounded), label: const Text('Explore gallery'))),
+                Expanded(child: FilledButton.icon(onPressed: _openPeopleTimeline, icon: const Icon(Icons.family_restroom_rounded), label: const Text('Growing timeline'))),
                 const SizedBox(width: 9),
+                IconButton.filledTonal(tooltip: 'Explore gallery', onPressed: () => setState(() { showAllPhotos = true; searchQuery = ''; }), icon: const Icon(Icons.grid_view_rounded)),
                 IconButton.filledTonal(tooltip: 'Search memories', onPressed: () { setState(() => showAllPhotos = true); WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) FocusScope.of(context).requestFocus(); }); }, icon: const Icon(Icons.search_rounded)),
                 IconButton.filledTonal(tooltip: 'Select memories', onPressed: () => setState(() => selectionMode = true), icon: const Icon(Icons.checklist_rounded)),
               ]),
@@ -4611,4 +4625,68 @@ class _UltimateMemoryCenterState extends State<UltimateMemoryCenter> {
   Future<void> _qr() async {final data=jsonEncode({'app':'Little Memories','photos':widget.photos.length,'favorites':widget.favorites.length,'stories':widget.timelines.length}); await showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('Memory QR'),content:Column(mainAxisSize:MainAxisSize.min,children:[Container(color:Colors.white,padding:const EdgeInsets.all(10),child:QrImageView(data:data,size:220)),const SizedBox(height:8),const Text('Safe summary only — no photo files are embedded.',textAlign:TextAlign.center)]),actions:[FilledButton(onPressed:()=>Navigator.pop(context),child:const Text('Done'))]));}
   @override Widget build(BuildContext context){if(loading)return const Scaffold(body:Center(child:CircularProgressIndicator())); final albums=_albums(); return Scaffold(appBar:AppBar(title:const Text('Ultimate Memory Center'),actions:[IconButton(onPressed:_export,icon:const Icon(Icons.ios_share_outlined))]),body:ListView(padding:const EdgeInsets.all(16),children:[Card(child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Private family memory hub',style:TextStyle(fontSize:22,fontWeight:FontWeight.w900)),const SizedBox(height:6),Text(widget.photos.length.toString()+' photos • '+widget.timelines.length.toString()+' stories • '+widget.favorites.length.toString()+' favorites'),const SizedBox(height:12),Wrap(spacing:8,children:[Chip(label:Text(albums.length.toString()+' smart albums')),Chip(label:Text(widget.hiddenIds.length.toString()+' private')),Chip(label:Text(profiles.length.toString()+' profiles'))])]))),_card(Icons.auto_stories_outlined,'Smart Albums',albums.length.toString()+' automatic month/year groups',(){showModalBottomSheet(context:context,isScrollControlled:true,builder:(_)=>SafeArea(child:SizedBox(height:MediaQuery.of(context).size.height*.8,child:ListView.builder(padding:const EdgeInsets.all(16),itemCount:albums.length,itemBuilder:(_,i)=>ListTile(leading:SizedBox(width:56,height:56,child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Thumb(albums[i].value.first))),title:Text(albums[i].key),subtitle:Text(albums[i].value.length.toString()+' memories'))))));}),_card(Icons.emoji_events_outlined,'Milestones','Track collection milestones',_milestones),_card(Icons.storage_outlined,'Storage Dashboard','Measure local photo storage',_storage),_card(Icons.local_offer_outlined,'Tags',tags.isEmpty?'Create reusable memory labels':tags.length.toString()+' tags',_tags),_card(Icons.people_outline,'Family Profiles',profiles.isEmpty?'Add family members':'Manage '+profiles.length.toString()+' profiles',_profiles),_card(Icons.lock_outline,'Private Memories',widget.hiddenIds.length.toString()+' hidden from the main gallery',(){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Use Memory tools → Private / Hidden memories to manage them.')));}),_card(Icons.ios_share_outlined,'Export Memory Catalog','Portable JSON index of your memories',_export),_card(Icons.qr_code_2_outlined,'Memory QR','Create a safe summary QR card',_qr),_card(Icons.cloud_outlined,'Private Cloud','PC companion provides local private-cloud backup',(){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Open Settings → Connect to Windows PC for local-cloud backup.')));}),_card(Icons.smart_toy_outlined,'AI Memory Assistant','AI captions, semantic search and story generation need an AI provider/API.',(){showDialog(context:context,builder:(_)=>const AlertDialog(title:Text('AI layer'),content:Text('The local memory foundation is ready. AI generation requires an API/service connection and credentials; it cannot be safely embedded without a provider.')));}),_card(Icons.movie_creation_outlined,'Memory Videos','Photo/video rendering needs a dedicated encoder pipeline.',(){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Video generation is the next media pipeline; the current APK keeps original photos safe.')));})]));}
   Widget _card(IconData icon,String title,String subtitle,VoidCallback onTap)=>Card(child:ListTile(contentPadding:const EdgeInsets.symmetric(horizontal:16,vertical:5),leading:CircleAvatar(child:Icon(icon)),title:Text(title,style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text(subtitle),trailing:const Icon(Icons.chevron_right),onTap:onTap));
+}
+
+class GrowingMemoryTimelinePage extends StatefulWidget {
+  final List<AssetEntity> photos;
+  final Map<String, Set<String>> initialProfiles;
+  final Future<void> Function(Map<String, Set<String>>) onSave;
+  final void Function(AssetEntity, List<AssetEntity>) onOpen;
+  const GrowingMemoryTimelinePage({super.key, required this.photos, required this.initialProfiles, required this.onSave, required this.onOpen});
+  @override State<GrowingMemoryTimelinePage> createState() => _GrowingMemoryTimelinePageState();
+}
+class _GrowingMemoryTimelinePageState extends State<GrowingMemoryTimelinePage> {
+  late Map<String, Set<String>> profiles;
+  String? person;
+  bool saving = false;
+  @override void initState() { super.initState(); profiles = widget.initialProfiles.map((k,v)=>MapEntry(k,v.toSet())); }
+  Future<void> save() async { setState(()=>saving=true); await widget.onSave(profiles); if(mounted)setState(()=>saving=false); }
+  Future<void> addProfile() async {
+    final c=TextEditingController();
+    final name=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Create daughter profile'),content:TextField(controller:c,autofocus:true,decoration:const InputDecoration(labelText:'Name')),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),FilledButton(onPressed:()=>c.text.trim().isEmpty?null:Navigator.pop(ctx,c.text.trim()),child:const Text('Create'))]));
+    c.dispose(); if(name==null||name.isEmpty||profiles.containsKey(name))return;
+    setState(()=>profiles[name]={}); person=name; await save(); if(mounted) await choosePhotos();
+  }
+  Future<void> choosePhotos() async {
+    if(person==null)return;
+    final chosen=await showModalBottomSheet<Set<String>>(context:context,isScrollControlled:true,showDragHandle:true,builder:(ctx)=>_DaughterPhotoPicker(photos:widget.photos,initial:profiles[person]??{}));
+    if(chosen!=null){setState(()=>profiles[person!]=chosen);await save();}
+  }
+  @override Widget build(BuildContext context) {
+    final cs=Theme.of(context).colorScheme;
+    final list=widget.photos.where((a)=>person==null||(profiles[person!]??{}).contains(a.id)).toList()..sort((a,b)=>b.createDateTime.compareTo(a.createDateTime));
+    final groups=<String,List<AssetEntity>>{};
+    for(final a in list){final d=a.createDateTime;groups.putIfAbsent('${d.year}-${d.month.toString().padLeft(2,'0')}',()=>[]).add(a);}
+    final cols=MediaQuery.sizeOf(context).width<400?3:4;
+    return Scaffold(appBar:AppBar(title:const Text('Growing memory timeline'),actions:[if(saving)const Padding(padding:EdgeInsets.all(14),child:SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2))),IconButton(onPressed:addProfile,tooltip:'Add daughter',icon:const Icon(Icons.person_add_alt_1))]),body:CustomScrollView(slivers:[
+      SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.all(16),child:Container(padding:const EdgeInsets.all(18),decoration:BoxDecoration(color:cs.surfaceContainerHighest,borderRadius:BorderRadius.circular(24),border:Border.all(color:cs.outlineVariant)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('EVERY YEAR, A NEW CHAPTER',style:TextStyle(color:cs.primary,fontWeight:FontWeight.w900,letterSpacing:1.2,fontSize:10)),const SizedBox(height:8),const Text('Watch them grow.',style:TextStyle(fontSize:29,fontWeight:FontWeight.w900)),const SizedBox(height:6),Text('A private, chronological collection of family memories.',style:TextStyle(color:cs.onSurfaceVariant)),const SizedBox(height:14),Row(children:[Expanded(child:Text('${widget.photos.length} photos',style:const TextStyle(fontWeight:FontWeight.w800))),Expanded(child:Text('${profiles.length} profiles',style:const TextStyle(fontWeight:FontWeight.w800))),Expanded(child:Text('${list.length} memories',style:const TextStyle(fontWeight:FontWeight.w800)))]),const SizedBox(height:12),Text('Photo matching is user-confirmed in this version; automatic face identification is not yet enabled.',style:TextStyle(fontSize:11,color:cs.onSurfaceVariant))])))),
+      SliverToBoxAdapter(child:SizedBox(height:58,child:ListView(scrollDirection:Axis.horizontal,padding:const EdgeInsets.symmetric(horizontal:12),children:[Padding(padding:const EdgeInsets.all(4),child:ChoiceChip(label:const Text('Everyone'),selected:person==null,onSelected:(_)=>setState(()=>person=null))),...profiles.entries.map((e)=>Padding(padding:const EdgeInsets.all(4),child:ChoiceChip(label:Text('${e.key} · ${e.value.length}'),selected:person==e.key,onSelected:(_)=>setState(()=>person=e.key)))),Padding(padding:const EdgeInsets.all(4),child:ActionChip(avatar:const Icon(Icons.add),label:const Text('Add daughter'),onPressed:addProfile))]))),
+      if(profiles.isEmpty) SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.all(24),child:Center(child:Column(children:[Icon(Icons.family_restroom,size:52,color:cs.primary),const SizedBox(height:10),const Text('Create a profile for each daughter and choose photos to start her timeline.',textAlign:TextAlign.center),const SizedBox(height:12),FilledButton.icon(onPressed:addProfile,icon:const Icon(Icons.person_add_alt_1),label:const Text('Create profile'))])))),
+      if(person!=null&&list.isEmpty) SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.all(22),child:FilledButton.icon(onPressed:choosePhotos,icon:const Icon(Icons.add_photo_alternate),label:Text('Choose photos for $person')))),
+      for(final e in groups.entries)...[
+        SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.fromLTRB(16,18,16,8),child:Row(children:[Expanded(child:Text(_label(e.key),style:const TextStyle(fontSize:19,fontWeight:FontWeight.w900))),Text('${e.value.length} memories',style:TextStyle(color:cs.onSurfaceVariant,fontSize:12))]))),
+        SliverPadding(padding:const EdgeInsets.symmetric(horizontal:8),sliver:SliverGrid(delegate:SliverChildBuilderDelegate((ctx,i){final a=e.value[i];return GestureDetector(onTap:()=>widget.onOpen(a,list),child:ClipRRect(borderRadius:BorderRadius.circular(12),child:Thumb(a)));},childCount:e.value.length),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:cols,crossAxisSpacing:6,mainAxisSpacing:6,childAspectRatio:.82)))
+      ],const SliverToBoxAdapter(child:SizedBox(height:80))
+    ]),floatingActionButton:FloatingActionButton.extended(onPressed:person==null?addProfile:choosePhotos,icon:Icon(person==null?Icons.person_add_alt_1:Icons.add_photo_alternate),label:Text(person==null?'Add daughter':'Add photos')));
+  }
+  String _label(String key){final p=key.split('-');const m=['January','February','March','April','May','June','July','August','September','October','November','December'];return '${m[int.parse(p[1])-1]} ${p[0]}';}
+}
+class _DaughterPhotoPicker extends StatefulWidget {
+  final List<AssetEntity> photos;final Set<String> initial;
+  const _DaughterPhotoPicker({required this.photos,required this.initial});
+  @override State<_DaughterPhotoPicker> createState()=>_DaughterPhotoPickerState();
+}
+class _DaughterPhotoPickerState extends State<_DaughterPhotoPicker>{
+  late Set<String> selected;String year='';
+  @override void initState(){super.initState();selected=widget.initial.toSet();}
+  @override Widget build(BuildContext context){
+    final photos=widget.photos.where((a)=>year.isEmpty||a.createDateTime.year.toString().contains(year)).toList()..sort((a,b)=>b.createDateTime.compareTo(a.createDateTime));
+    final cols=MediaQuery.sizeOf(context).width<400?3:4;
+    return SafeArea(child:SizedBox(height:MediaQuery.sizeOf(context).height*.82,child:Column(children:[
+      Padding(padding:const EdgeInsets.all(14),child:Row(children:[const Expanded(child:Text('Select and confirm photos',style:TextStyle(fontWeight:FontWeight.w900,fontSize:19))),Text('${selected.length} selected')])),
+      Padding(padding:const EdgeInsets.symmetric(horizontal:14),child:TextField(onChanged:(v)=>setState(()=>year=v.trim()),decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'Filter by year, e.g. 2024',border:OutlineInputBorder()))),
+      Expanded(child:GridView.builder(padding:const EdgeInsets.all(8),itemCount:photos.length,gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:cols,crossAxisSpacing:5,mainAxisSpacing:5),itemBuilder:(ctx,i){final a=photos[i];final yes=selected.contains(a.id);return GestureDetector(onTap:()=>setState(()=>yes?selected.remove(a.id):selected.add(a.id)),child:Stack(fit:StackFit.expand,children:[ClipRRect(borderRadius:BorderRadius.circular(10),child:Thumb(a)),if(yes)Container(decoration:BoxDecoration(border:Border.all(color:Theme.of(context).colorScheme.primary,width:3),borderRadius:BorderRadius.circular(10),color:Theme.of(context).colorScheme.primary.withValues(alpha:.2))),Positioned(right:4,top:4,child:CircleAvatar(radius:12,backgroundColor:yes?Theme.of(context).colorScheme.primary:Colors.black54,child:Icon(yes?Icons.check:Icons.add,color:Colors.white,size:16))),Positioned(left:4,bottom:4,child:Container(padding:const EdgeInsets.all(4),decoration:BoxDecoration(color:Colors.black54,borderRadius:BorderRadius.circular(6)),child:Text('${a.createDateTime.day}/${a.createDateTime.month}/${a.createDateTime.year}',style:const TextStyle(color:Colors.white,fontSize:9))))]));})),
+      Padding(padding:const EdgeInsets.all(12),child:SizedBox(width:double.infinity,child:FilledButton(onPressed:()=>Navigator.pop(context,selected),child:const Text('Save confirmed photos'))))
+    ])));
+  }
 }
