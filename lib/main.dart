@@ -344,6 +344,7 @@ class Home extends StatefulWidget {
 }
 class _HomeState extends State<Home> {
   int tab = 0, grid = 3, albumGrid = 3, exploreGrid = 3;
+  bool homeShowFeatured = true, homeShowCollections = true, homeShowRecent = true, homeCompact = true;
   bool galleryNewestFirst = true;
   bool galleryShowNames = false;
   bool gallerySortByName = false;
@@ -400,6 +401,10 @@ class _HomeState extends State<Home> {
     galleryShowNames = p.getBool('galleryShowNames') ?? false;
     gallerySortByName = p.getBool('gallerySortByName') ?? false;
     grid = p.getInt('grid') ?? 3;
+    homeShowFeatured = p.getBool('homeShowFeatured') ?? true;
+    homeShowCollections = p.getBool('homeShowCollections') ?? true;
+    homeShowRecent = p.getBool('homeShowRecent') ?? true;
+    homeCompact = p.getBool('homeCompact') ?? true;
     albumGrid = p.getInt('albumGrid') ?? 3;
     exploreGrid = p.getInt('exploreGrid') ?? 3;
     childName = p.getString('childName') ?? 'My Little Star';
@@ -573,6 +578,10 @@ class _HomeState extends State<Home> {
     await p.setBool('galleryShowNames', galleryShowNames);
     await p.setBool('gallerySortByName', gallerySortByName);
     await p.setInt('grid', grid);
+    await p.setBool('homeShowFeatured', homeShowFeatured);
+    await p.setBool('homeShowCollections', homeShowCollections);
+    await p.setBool('homeShowRecent', homeShowRecent);
+    await p.setBool('homeCompact', homeCompact);
     await p.setInt('albumGrid', albumGrid);
     await p.setInt('exploreGrid', exploreGrid);
     await p.setString('childName', childName);
@@ -1350,7 +1359,7 @@ class _HomeState extends State<Home> {
   Widget _modernQuickActions() {
     final List<Map<String, dynamic>> actions = [
       {'icon': Icons.search, 'label': 'Find a memory', 'onTap': () => setState(() => showAllPhotos = true)},
-      {'icon': Icons.favorite_rounded, 'label': 'Favorites', 'onTap': () => setState(() => tab = 2)},
+      {'icon': Icons.favorite_rounded, 'label': 'Favorites', 'onTap': () => setState(() { tab = 0; showAllPhotos = true; galleryFilter = 1; })},
       {'icon': Icons.collections_bookmark_rounded, 'label': 'Albums', 'onTap': () => setState(() => tab = 1)},
       {'icon': Icons.auto_awesome, 'label': 'On this day', 'onTap': _openMomentsPage},
     ];
@@ -1404,148 +1413,183 @@ class _HomeState extends State<Home> {
     ]);
   }
 
+  Future<void> _customizeHome() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Customize home', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 5),
+                Text('Choose what appears on your dashboard.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                const SizedBox(height: 12),
+                SwitchListTile(contentPadding: EdgeInsets.zero, value: homeShowFeatured, onChanged: (v) async { setState(() => homeShowFeatured = v); setSheetState(() {}); await _save(); }, title: const Text('Featured memory'), subtitle: const Text('Show a large highlight card')),
+                SwitchListTile(contentPadding: EdgeInsets.zero, value: homeShowCollections, onChanged: (v) async { setState(() => homeShowCollections = v); setSheetState(() {}); await _save(); }, title: const Text('Your collections'), subtitle: const Text('Favorites, videos and camera roll')),
+                SwitchListTile(contentPadding: EdgeInsets.zero, value: homeShowRecent, onChanged: (v) async { setState(() => homeShowRecent = v); setSheetState(() {}); await _save(); }, title: const Text('Recent memories'), subtitle: const Text('Show a photo mosaic on Home')),
+                SwitchListTile(contentPadding: EdgeInsets.zero, value: homeCompact, onChanged: (v) async { setState(() => homeCompact = v); setSheetState(() {}); await _save(); }, title: const Text('Compact dashboard'), subtitle: const Text('Smaller cards to fit more memories on screen')),
+                const SizedBox(height: 8),
+                Row(children: [
+                  const Expanded(child: Text('Recent photo columns', style: TextStyle(fontWeight: FontWeight.w800))),
+                  SegmentedButton<int>(segments: const [ButtonSegment(value: 2, label: Text('2')), ButtonSegment(value: 3, label: Text('3')), ButtonSegment(value: 4, label: Text('4'))], selected: {grid.clamp(2, 4)}, onSelectionChanged: (v) async { setState(() => grid = v.first); setSheetState(() {}); await _save(); }),
+                ]),
+                const SizedBox(height: 18),
+                SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(sheetContext), child: const Text('Done'))),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _dashboard() {
     final cs = Theme.of(context).colorScheme;
     final visible = photos.where((a) => !hiddenIds.contains(a.id) && !deletedIds.contains(a.id)).toList()
-      ..sort((a,b) => b.createDateTime.compareTo(a.createDateTime));
+      ..sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
     final featured = visible.isEmpty ? null : visible.first;
     final favoritePhotos = visible.where((a) => favorites.contains(a.id)).toList();
     final videoCount = videos.length;
+    final pad = homeCompact ? 14.0 : 20.0;
+    final cardRadius = homeCompact ? 22.0 : 28.0;
+
+    Widget sectionTitle(String title, String action, VoidCallback onTap, {IconData icon = Icons.arrow_forward_rounded}) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(pad, homeCompact ? 16 : 24, pad, 10),
+        child: Row(children: [
+          Expanded(child: Text(title, style: TextStyle(fontSize: homeCompact ? 19 : 22, fontWeight: FontWeight.w900, letterSpacing: -.6))),
+          TextButton.icon(onPressed: onTap, icon: Icon(icon, size: 17), label: Text(action)),
+        ]),
+      );
+    }
+
     Widget collectionCard(String title, String subtitle, IconData icon, Color color, VoidCallback tap, {AssetEntity? photo}) {
       return SizedBox(
-        height: 104,
+        width: homeCompact ? 144 : 166,
+        height: homeCompact ? 104 : 126,
         child: Material(
           color: color,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(cardRadius),
           clipBehavior: Clip.antiAlias,
           child: InkWell(onTap: tap, child: Stack(fit: StackFit.expand, children: [
             if (photo != null) Thumb(photo),
-            if (photo != null) DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
-              begin: Alignment.topCenter, end: Alignment.bottomCenter,
-              colors: [Colors.black.withValues(alpha:.05), Colors.black.withValues(alpha:.72)]))),
-            if (photo == null) Positioned(right: -10, top: -18, child: Icon(icon, size: 94, color: Colors.white.withValues(alpha:.12))),
-            Padding(padding: const EdgeInsets.all(13), child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.end, children: [
-                Icon(icon, size: 19, color: Colors.white),
-                const Spacer(),
-                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 15)),
-                Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w600)),
-              ],
-            )),
+            if (photo != null) DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black.withValues(alpha: .82)]))),
+            if (photo == null) Positioned(right: -10, top: -12, child: Icon(icon, size: 90, color: Colors.white.withValues(alpha: .14))),
+            Padding(padding: const EdgeInsets.all(13), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(icon, size: 20, color: Colors.white),
+              const Spacer(),
+              Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14)),
+              Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w600)),
+            ])),
           ])),
         ),
       );
     }
+
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
         SliverToBoxAdapter(child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [Container(width: 6, height: 6, decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle)), const SizedBox(width: 7), Text('YOUR LIFE, BEAUTIFULLY KEPT', style: TextStyle(fontSize: 9, letterSpacing: 1.8, fontWeight: FontWeight.w900, color: cs.primary))]),
-              const SizedBox(height: 7),
-              Text.rich(const TextSpan(children: [TextSpan(text: 'Focus on\n', style: TextStyle(color: Color(0xFF202923), fontWeight: FontWeight.w900)), TextSpan(text: 'the good.', style: TextStyle(color: Color(0xFF648F7C), fontWeight: FontWeight.w900))]), style: const TextStyle(fontSize: 39, height: .96, letterSpacing: -1.9)),
-              const SizedBox(height: 7),
-              Text('${visible.length} memories • all your little things', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
-            ])),
-            IconButton.filledTonal(tooltip:'Search memories', onPressed: () {
-              setState(() { showAllPhotos = true; });
-              WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) FocusScope.of(context).requestFocus(); });
-            }, icon: const Icon(Icons.search_rounded)),
-            const SizedBox(width: 4),
-            IconButton.filledTonal(tooltip:'Select memories', onPressed: () => setState(() => selectionMode = true), icon: const Icon(Icons.checklist_rounded)),
-          ]),
+          padding: EdgeInsets.fromLTRB(pad, homeCompact ? 10 : 20, pad, 6),
+          child: Container(
+            padding: EdgeInsets.all(homeCompact ? 17 : 22),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(cardRadius + 4),
+              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [cs.surfaceContainerHighest, cs.surface, cs.primary.withValues(alpha: .12)]),
+              border: Border.all(color: cs.outlineVariant.withValues(alpha: .65)),
+              boxShadow: [BoxShadow(color: cs.primary.withValues(alpha: .06), blurRadius: 28, offset: const Offset(0, 10))],
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(width: 8, height: 8, decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle, boxShadow: [BoxShadow(color: cs.primary.withValues(alpha: .5), blurRadius: 8)])),
+                const SizedBox(width: 8),
+                Expanded(child: Text('LITTLE MEMORIES  /  YOUR PRIVATE SPACE', style: TextStyle(fontSize: 9, letterSpacing: 1.25, fontWeight: FontWeight.w900, color: cs.primary))),
+                IconButton.filledTonal(tooltip: 'Customize home', onPressed: _customizeHome, icon: const Icon(Icons.tune_rounded)),
+              ]),
+              SizedBox(height: homeCompact ? 10 : 18),
+              Text('Every moment.\\nOne beautiful place.', style: TextStyle(fontSize: homeCompact ? 29 : 35, height: 1.02, fontWeight: FontWeight.w900, letterSpacing: -1.3, color: cs.onSurface)),
+              const SizedBox(height: 8),
+              Text('Your memories, organized around your life.', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 16),
+              Row(children: [
+                Expanded(child: _dashboardMetric(Icons.photo_library_outlined, visible.length.toString(), 'MEMORIES')),
+                const SizedBox(width: 8),
+                Expanded(child: _dashboardMetric(Icons.favorite_border_rounded, favoritePhotos.length.toString(), 'FAVORITES')),
+                const SizedBox(width: 8),
+                Expanded(child: _dashboardMetric(Icons.play_circle_outline_rounded, videoCount.toString(), 'VIDEOS')),
+              ]),
+              const SizedBox(height: 14),
+              Row(children: [
+                Expanded(child: FilledButton.icon(onPressed: () => setState(() { showAllPhotos = true; searchQuery = ''; }), icon: const Icon(Icons.grid_view_rounded), label: const Text('Explore gallery'))),
+                const SizedBox(width: 9),
+                IconButton.filledTonal(tooltip: 'Search memories', onPressed: () { setState(() => showAllPhotos = true); WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) FocusScope.of(context).requestFocus(); }); }, icon: const Icon(Icons.search_rounded)),
+                IconButton.filledTonal(tooltip: 'Select memories', onPressed: () => setState(() => selectionMode = true), icon: const Icon(Icons.checklist_rounded)),
+              ]),
+            ]),
+          ),
         )),
-        if (featured != null) SliverToBoxAdapter(child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
-          child: SizedBox(height: 340, child: Material(
-            borderRadius: BorderRadius.circular(30), clipBehavior: Clip.antiAlias, elevation: 0,
+        if (homeShowFeatured && featured != null) SliverToBoxAdapter(child: Padding(
+          padding: EdgeInsets.fromLTRB(pad, 12, pad, 0),
+          child: SizedBox(height: homeCompact ? 220 : 280, child: Material(
+            borderRadius: BorderRadius.circular(cardRadius + 4), clipBehavior: Clip.antiAlias,
             child: InkWell(onTap: () => _openPhoto(featured, visible), child: Stack(fit: StackFit.expand, children: [
               Thumb(featured),
-              DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
-                begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                colors: [Colors.black.withValues(alpha:.03), Colors.black.withValues(alpha:.82)],
-                stops: const [0.25, 1]))),
-              Positioned(left: 16, top: 16, child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha:.88), borderRadius: BorderRadius.circular(24)),
-                child: Text('✦  A MOMENT TO KEEP', style: TextStyle(color: cs.onSurface, fontSize: 9, letterSpacing: 1.1, fontWeight: FontWeight.w900)))),
-              Positioned(left: 16, right: 16, bottom: 17, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(names[featured.id] ?? 'A little piece of life', maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 27, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -.6)),
-                const SizedBox(height: 5),
-                Text('${featured.createDateTime.day} ${_monthName(featured.createDateTime.month)} ${featured.createDateTime.year}  ·  TAP TO RELIVE',
-                  style: const TextStyle(color: Colors.white70, fontSize: 10, letterSpacing: .7, fontWeight: FontWeight.w700)),
+              DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black.withValues(alpha: .02), Colors.black.withValues(alpha: .84)], stops: const [.25, 1]))),
+              Positioned(left: 14, top: 14, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: cs.surface.withValues(alpha: .88), borderRadius: BorderRadius.circular(30), border: Border.all(color: Colors.white.withValues(alpha: .4))), child: Text('✦  MEMORY SPOTLIGHT', style: TextStyle(color: cs.onSurface, fontSize: 9, letterSpacing: 1, fontWeight: FontWeight.w900)))),
+              Positioned(left: 15, right: 15, bottom: 15, child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(names[featured.id]?.trim().isNotEmpty == true ? names[featured.id]! : 'A moment worth keeping', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white, fontSize: homeCompact ? 22 : 27, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -.5)),
+                  const SizedBox(height: 5),
+                  Text('${featured.createDateTime.day} ${_monthName(featured.createDateTime.month)} ${featured.createDateTime.year}  ·  TAP TO RELIVE', style: const TextStyle(color: Colors.white70, fontSize: 10, letterSpacing: .5, fontWeight: FontWeight.w700)),
+                ])),
+                const SizedBox(width: 10),
+                Container(width: 42, height: 42, decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: .65))), child: const Icon(Icons.arrow_outward_rounded, color: Colors.white)),
               ])),
-              Positioned(right: 13, bottom: 13, child: Container(
-                width: 42, height: 42, decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle),
-                child: ClipOval(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14), child: Container(width: 42, height: 42, alignment: Alignment.center, decoration: BoxDecoration(color: Colors.white.withValues(alpha: .22), shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: .62))), child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28)))))),
             ])),
           )),
         )),
-        SliverToBoxAdapter(child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 11),
-          child: Row(children: [
-            const Expanded(child: Text('Your collections', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, letterSpacing: -.5))),
-            TextButton(onPressed: () => setState(() => tab = 1), child: const Text('Explore all  ↗')),
-          ]),
-        )),
-        SliverToBoxAdapter(child: SizedBox(height: 118, child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 18), scrollDirection: Axis.horizontal,
+        if (homeShowCollections) SliverToBoxAdapter(child: sectionTitle('Your collections', 'View albums', () => setState(() => tab = 1))),
+        if (homeShowCollections) SliverToBoxAdapter(child: SizedBox(height: homeCompact ? 108 : 130, child: ListView(
+          padding: EdgeInsets.symmetric(horizontal: pad), scrollDirection: Axis.horizontal,
           children: [
-            SizedBox(width: 150, child: collectionCard('Favorites', '${favoritePhotos.length} saved moments', Icons.favorite_rounded, const Color(0xFF9A4C69),
-              () => setState(() { tab = 0; showAllPhotos = true; galleryFilter = 1; } ), photo: favoritePhotos.isEmpty ? null : favoritePhotos.first)),
+            collectionCard('Favorites', '${favoritePhotos.length} saved moments', Icons.favorite_rounded, const Color(0xFF9A4C69), () => setState(() { tab = 0; showAllPhotos = true; galleryFilter = 1; }), photo: favoritePhotos.isEmpty ? null : favoritePhotos.first),
             const SizedBox(width: 10),
-            SizedBox(width: 152, child: collectionCard('Videos', '$videoCount moving memories', Icons.play_circle_fill_rounded, const Color(0xFF3F6B77),
-              () { setState(() => tab = 1); unawaited(_refreshVideos()); }, photo: videos.isEmpty ? null : videos.first)),
+            collectionCard('Videos', '$videoCount moving memories', Icons.play_circle_fill_rounded, const Color(0xFF326C78), () { setState(() => tab = 1); unawaited(_refreshVideos()); }, photo: videos.isEmpty ? null : videos.first),
             const SizedBox(width: 10),
-            SizedBox(width: 152, child: collectionCard('Camera roll', '${visible.length} moments', Icons.camera_alt_rounded, const Color(0xFF6C5A9C),
-              () => setState(() => showAllPhotos = true), photo: featured)),
+            collectionCard('Camera roll', '${visible.length} moments', Icons.camera_alt_rounded, const Color(0xFF6152A3), () => setState(() => showAllPhotos = true), photo: featured),
           ],
         ))),
-        SliverToBoxAdapter(child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
-          child: Row(children: [
-            const Expanded(child: Text('Today’s capture', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, letterSpacing: -.5))),
-            IconButton(tooltip:'Grid density', onPressed: () => showModalBottomSheet<void>(
-              context: context, showDragHandle: true, builder: (ctx) => SafeArea(child: Padding(
-                padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Gallery layout', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 12),
-                  Wrap(spacing: 8, children: [for(final n in [2,3,4,5,6,7,8]) ChoiceChip(
-                    label: Text('$n columns'), selected: grid == n, onSelected: (_) async { setState(() => grid = n); await _save(); if(ctx.mounted) Navigator.pop(ctx); })]),
-                ]),
-              )),
-            ), icon: const Icon(Icons.grid_view_rounded)),
-            TextButton(onPressed: () => setState(() => showAllPhotos = true), child: const Text('See all')),
-          ]),
-        )),
-        if (visible.isEmpty) SliverToBoxAdapter(child: Padding(
-          padding: const EdgeInsets.all(28), child: Center(child: Column(children: [
-            Icon(Icons.photo_library_outlined, size: 54, color: cs.primary),
+        if (homeShowRecent) SliverToBoxAdapter(child: sectionTitle('Recent memories', 'See all', () => setState(() => showAllPhotos = true), icon: Icons.arrow_outward_rounded)),
+        if (homeShowRecent && visible.isEmpty) SliverToBoxAdapter(child: Padding(
+          padding: EdgeInsets.all(pad + 10), child: Center(child: Column(children: [
+            Icon(Icons.photo_library_outlined, size: 50, color: cs.primary),
             const SizedBox(height: 10), const Text('Your story starts here', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
             const SizedBox(height: 8), const Text('Your photos will appear here once library access is allowed.', textAlign: TextAlign.center),
             const SizedBox(height: 12), FilledButton.icon(onPressed: _importPhotos, icon: const Icon(Icons.add_photo_alternate_rounded), label: const Text('Add memories')),
           ])),
-        )) else SliverPadding(
-          padding: const EdgeInsets.fromLTRB(8, 0, 8, 30),
+        )),
+        if (homeShowRecent && visible.isNotEmpty) SliverPadding(
+          padding: EdgeInsets.fromLTRB(homeCompact ? 8 : 12, 0, homeCompact ? 8 : 12, 28),
           sliver: SliverMasonryGrid.count(
-            crossAxisCount: grid.clamp(2, 8), mainAxisSpacing: 8, crossAxisSpacing: 8,
-            childCount: visible.length.clamp(0, 12),
+            crossAxisCount: grid.clamp(2, 4), mainAxisSpacing: homeCompact ? 6 : 9, crossAxisSpacing: homeCompact ? 6 : 9,
+            childCount: visible.length.clamp(0, homeCompact ? 12 : 9),
             itemBuilder: (context, index) {
               final a = visible[index];
               final ratio = (a.width > 0 && a.height > 0 ? a.width / a.height : 1.0).clamp(.62, 1.55).toDouble();
               return GestureDetector(
                 onTap: () => _openPhoto(a, visible),
                 onLongPress: () => _showPhotoActions(a, visible),
-                child: ClipRRect(borderRadius: BorderRadius.circular(13), child: AspectRatio(
+                child: ClipRRect(borderRadius: BorderRadius.circular(homeCompact ? 12 : 18), child: AspectRatio(
                   aspectRatio: ratio, child: Stack(fit: StackFit.expand, children: [
                     Thumb(a),
-                    DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                      colors: [Colors.transparent, Colors.black.withValues(alpha:.46)], stops: const [.55, 1]))),
-                    Positioned(left: 8, right: 8, bottom: 8, child: Text(names[a.id] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800))),
+                    DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black.withValues(alpha: .40)], stops: const [.58, 1]))),
+                    if ((names[a.id] ?? '').trim().isNotEmpty) Positioned(left: 8, right: 8, bottom: 8, child: Text(names[a.id]!, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800))),
                     if (selectedIds.contains(a.id)) const Positioned(right: 6, top: 6, child: CircleAvatar(radius: 12, child: Icon(Icons.check_rounded, size: 15))),
                   ]),
                 )),
@@ -1554,6 +1598,22 @@ class _HomeState extends State<Home> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _dashboardMetric(IconData icon, String value, String label) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10),
+      decoration: BoxDecoration(color: cs.surface.withValues(alpha: .72), borderRadius: BorderRadius.circular(16), border: Border.all(color: cs.outlineVariant.withValues(alpha: .55))),
+      child: Row(children: [
+        Icon(icon, size: 17, color: cs.primary),
+        const SizedBox(width: 7),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8, letterSpacing: .7, fontWeight: FontWeight.w800, color: cs.onSurfaceVariant)),
+        ])),
+      ]),
     );
   }
 
