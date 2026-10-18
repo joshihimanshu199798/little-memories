@@ -1492,7 +1492,11 @@ class _HomeState extends State<Home> {
       );
     }
 
-    return CustomScrollView(
+    return DefaultTextStyle.merge(
+      style: TextStyle(color: cs.onSurface),
+      child: IconTheme.merge(
+        data: IconThemeData(color: cs.onSurface),
+        child: CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
         SliverToBoxAdapter(child: Padding(
@@ -1598,6 +1602,8 @@ class _HomeState extends State<Home> {
           ),
         ),
       ],
+    ),
+      ),
     );
   }
 
