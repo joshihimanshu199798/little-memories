@@ -1517,7 +1517,7 @@ class _HomeState extends State<Home> {
                 IconButton.filledTonal(tooltip: 'Customize home', onPressed: _customizeHome, icon: const Icon(Icons.tune_rounded)),
               ]),
               SizedBox(height: homeCompact ? 10 : 18),
-              Text('Every moment.\\nOne beautiful place.', style: TextStyle(fontSize: homeCompact ? 29 : 35, height: 1.02, fontWeight: FontWeight.w900, letterSpacing: -1.3, color: cs.onSurface)),
+              Text('Every moment.\nOne beautiful place.', style: TextStyle(fontSize: homeCompact ? 29 : 35, height: 1.02, fontWeight: FontWeight.w900, letterSpacing: -1.3, color: cs.onSurface)),
               const SizedBox(height: 8),
               Text('Your memories, organized around your life.', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
               const SizedBox(height: 16),
