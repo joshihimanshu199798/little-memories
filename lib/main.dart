@@ -1804,7 +1804,11 @@ class _HomeState extends State<Home> {
   Widget _albumsTab() {
     final cs = Theme.of(context).colorScheme;
     final custom = memoryAlbums.entries.toList();
-    return CustomScrollView(slivers: [
+    return DefaultTextStyle.merge(
+      style: TextStyle(color: cs.onSurface),
+      child: IconTheme.merge(
+        data: IconThemeData(color: cs.onSurface),
+        child: CustomScrollView(slivers: [
       SliverPadding(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 110),
         sliver: SliverList(delegate: SliverChildListDelegate([
@@ -1875,7 +1879,9 @@ class _HomeState extends State<Home> {
           ]),
         ])),
       ),
-    ]);
+        ]),
+      ),
+    );
   }
 
   Widget _specialAlbumCard({required IconData icon, required String title, required String subtitle, required VoidCallback onTap}) {
@@ -4638,6 +4644,8 @@ class GrowingMemoryTimelinePage extends StatefulWidget {
 class _GrowingMemoryTimelinePageState extends State<GrowingMemoryTimelinePage> {
   late Map<String, Set<String>> profiles;
   String? person;
+  String yearFilter = '';
+  bool newestFirst = true;
   bool saving = false;
   @override void initState() { super.initState(); profiles = widget.initialProfiles.map((k,v)=>MapEntry(k,v.toSet())); }
   Future<void> save() async { setState(()=>saving=true); await widget.onSave(profiles); if(mounted)setState(()=>saving=false); }
@@ -4652,17 +4660,75 @@ class _GrowingMemoryTimelinePageState extends State<GrowingMemoryTimelinePage> {
     final chosen=await showModalBottomSheet<Set<String>>(context:context,isScrollControlled:true,showDragHandle:true,builder:(ctx)=>_DaughterPhotoPicker(photos:widget.photos,initial:profiles[person]??{}));
     if(chosen!=null){setState(()=>profiles[person!]=chosen);await save();}
   }
+  Future<void> manageProfile(String profile) async {
+    final action=await showModalBottomSheet<String>(
+      context:context,showDragHandle:true,
+      builder:(ctx)=>SafeArea(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        ListTile(leading:const Icon(Icons.photo_library_outlined),title:const Text('Choose / correct photos'),onTap:()=>Navigator.pop(ctx,'photos')),
+        ListTile(leading:const Icon(Icons.edit_outlined),title:const Text('Rename profile'),onTap:()=>Navigator.pop(ctx,'rename')),
+        ListTile(leading:const Icon(Icons.delete_outline_rounded),title:const Text('Remove profile'),onTap:()=>Navigator.pop(ctx,'delete')),
+      ])),
+    );
+    if(action=='photos'){setState(()=>person=profile);await choosePhotos();return;}
+    if(action=='rename'&&mounted){
+      final controller=TextEditingController(text:profile);
+      final next=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(
+        title:const Text('Rename profile'),
+        content:TextField(controller:controller,autofocus:true,textCapitalization:TextCapitalization.words,decoration:const InputDecoration(labelText:'Profile name')),
+        actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),FilledButton(onPressed:()=>controller.text.trim().isEmpty?null:Navigator.pop(ctx,controller.text.trim()),child:const Text('Save'))],
+      ));
+      controller.dispose();
+      if(next!=null&&next.isNotEmpty&&next!=profile&&!profiles.containsKey(next)){
+        setState(()=>profiles[next]=profiles.remove(profile)??{});
+        if(person==profile)setState(()=>person=next);
+        await save();
+      }
+    }
+    if(action=='delete'&&mounted){
+      final confirm=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+        title:const Text('Remove profile?'),
+        content:Text('Remove $profile and its saved photo grouping? Original photos will stay on your phone.'),
+        actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Remove'))],
+      ))??false;
+      if(confirm){setState(()=>{profiles.remove(profile);if(person==profile)person=null;});await save();}
+    }
+  }
   @override Widget build(BuildContext context) {
     final cs=Theme.of(context).colorScheme;
-    final list=widget.photos.where((a)=>person==null||(profiles[person!]??{}).contains(a.id)).toList()..sort((a,b)=>b.createDateTime.compareTo(a.createDateTime));
+    final candidates=widget.photos.where((a)=>person==null||(profiles[person!]??{}).contains(a.id)).toList();
+    candidates.sort((a,b)=>newestFirst?b.createDateTime.compareTo(a.createDateTime):a.createDateTime.compareTo(b.createDateTime));
+    final list=yearFilter.isEmpty?candidates:candidates.where((a)=>a.createDateTime.year.toString().contains(yearFilter)).toList();
     final groups=<String,List<AssetEntity>>{};
     for(final a in list){final d=a.createDateTime;groups.putIfAbsent('${d.year}-${d.month.toString().padLeft(2,'0')}',()=>[]).add(a);}
     final cols=MediaQuery.sizeOf(context).width<400?3:4;
-    return Scaffold(appBar:AppBar(title:const Text('Growing memory timeline'),actions:[if(saving)const Padding(padding:EdgeInsets.all(14),child:SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2))),IconButton(onPressed:addProfile,tooltip:'Add daughter',icon:const Icon(Icons.person_add_alt_1))]),body:CustomScrollView(slivers:[
-      SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.all(16),child:Container(padding:const EdgeInsets.all(18),decoration:BoxDecoration(color:cs.surfaceContainerHighest,borderRadius:BorderRadius.circular(24),border:Border.all(color:cs.outlineVariant)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('EVERY YEAR, A NEW CHAPTER',style:TextStyle(color:cs.primary,fontWeight:FontWeight.w900,letterSpacing:1.2,fontSize:10)),const SizedBox(height:8),const Text('Watch them grow.',style:TextStyle(fontSize:29,fontWeight:FontWeight.w900)),const SizedBox(height:6),Text('A private, chronological collection of family memories.',style:TextStyle(color:cs.onSurfaceVariant)),const SizedBox(height:14),Row(children:[Expanded(child:Text('${widget.photos.length} photos',style:const TextStyle(fontWeight:FontWeight.w800))),Expanded(child:Text('${profiles.length} profiles',style:const TextStyle(fontWeight:FontWeight.w800))),Expanded(child:Text('${list.length} memories',style:const TextStyle(fontWeight:FontWeight.w800)))]),const SizedBox(height:12),Text('Photo matching is user-confirmed in this version; automatic face identification is not yet enabled.',style:TextStyle(fontSize:11,color:cs.onSurfaceVariant))])))),
-      SliverToBoxAdapter(child:SizedBox(height:58,child:ListView(scrollDirection:Axis.horizontal,padding:const EdgeInsets.symmetric(horizontal:12),children:[Padding(padding:const EdgeInsets.all(4),child:ChoiceChip(label:const Text('Everyone'),selected:person==null,onSelected:(_)=>setState(()=>person=null))),...profiles.entries.map((e)=>Padding(padding:const EdgeInsets.all(4),child:ChoiceChip(label:Text('${e.key} · ${e.value.length}'),selected:person==e.key,onSelected:(_)=>setState(()=>person=e.key)))),Padding(padding:const EdgeInsets.all(4),child:ActionChip(avatar:const Icon(Icons.add),label:const Text('Add daughter'),onPressed:addProfile))]))),
+    return Scaffold(appBar:AppBar(title:const Text('Growing timeline'),actions:[if(saving)const Padding(padding:EdgeInsets.all(14),child:SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2))),IconButton(tooltip:newestFirst?'Newest first':'Oldest first',onPressed:()=>setState(()=>newestFirst=!newestFirst),icon:Icon(newestFirst?Icons.south_rounded:Icons.north_rounded)),IconButton(onPressed:addProfile,tooltip:'Add daughter',icon:const Icon(Icons.person_add_alt_1))]),body:CustomScrollView(slivers:[
+      SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.all(16),child:Container(padding:const EdgeInsets.all(18),decoration:BoxDecoration(color:cs.surfaceContainerHighest,borderRadius:BorderRadius.circular(24),border:Border.all(color:cs.outlineVariant)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('EVERY YEAR, A NEW CHAPTER',style:TextStyle(color:cs.primary,fontWeight:FontWeight.w900,letterSpacing:1.2,fontSize:10)),const SizedBox(height:8),const Text('Watch them grow.',style:TextStyle(fontSize:29,fontWeight:FontWeight.w900)),const SizedBox(height:6),Text('Pick photos. Browse by year.',style:TextStyle(color:cs.onSurfaceVariant)),const SizedBox(height:14),Row(children:[Expanded(child:Text('${widget.photos.length} photos',style:const TextStyle(fontWeight:FontWeight.w800))),Expanded(child:Text('${profiles.length} profile${profiles.length==1?'':'s'}',style:const TextStyle(fontWeight:FontWeight.w800))),Expanded(child:Text('${list.length} memories',style:const TextStyle(fontWeight:FontWeight.w800)))]),const SizedBox(height:8),Text('Profiles use photos you select manually.',style:TextStyle(fontSize:11,color:cs.onSurfaceVariant))])))),
+      SliverToBoxAdapter(child:SizedBox(height:58,child:ListView(scrollDirection:Axis.horizontal,padding:const EdgeInsets.symmetric(horizontal:12),children:[
+        Padding(padding:const EdgeInsets.all(4),child:ChoiceChip(
+          label:Text('Everyone',style:TextStyle(color:person==null?cs.onPrimary:cs.onSurface,fontWeight:FontWeight.w800)),
+          selected:person==null,selectedColor:cs.primary,backgroundColor:cs.surface,checkmarkColor:cs.onPrimary,
+          side:BorderSide(color:cs.outlineVariant,width:1.2),onSelected:(_)=>setState(()=>person=null))),
+        ...profiles.entries.map((e)=>Padding(padding:const EdgeInsets.all(4),child:ChoiceChip(
+          label:Text('${e.key} · ${e.value.length}',style:TextStyle(color:person==e.key?cs.onPrimary:cs.onSurface,fontWeight:FontWeight.w800)),
+          selected:person==e.key,selectedColor:cs.primary,backgroundColor:cs.surface,checkmarkColor:cs.onPrimary,
+          side:BorderSide(color:cs.outlineVariant,width:1.2),onSelected:(_)=>setState(()=>person=e.key)))),
+        if(person!=null) Padding(padding:const EdgeInsets.all(4),child:ActionChip(
+          avatar:Icon(Icons.manage_accounts_outlined,color:cs.onSurface,size:18),
+          label:Text('Manage',style:TextStyle(color:cs.onSurface,fontWeight:FontWeight.w800)),
+          backgroundColor:cs.surface,side:BorderSide(color:cs.outlineVariant,width:1.2),onPressed:()=>manageProfile(person!))),
+        Padding(padding:const EdgeInsets.all(4),child:ActionChip(
+          avatar:Icon(Icons.add,color:cs.onSurface,size:18),
+          label:Text('Add daughter',style:TextStyle(color:cs.onSurface,fontWeight:FontWeight.w800)),
+          backgroundColor:cs.surface,side:BorderSide(color:cs.outlineVariant,width:1.2),onPressed:addProfile))
+      ]))), 
+      SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.fromLTRB(14,0,14,8),child:TextField(
+        keyboardType:TextInputType.number,maxLength:4,
+        onChanged:(value)=>setState(()=>yearFilter=value.trim()),
+        decoration:InputDecoration(isDense:true,counterText:'',prefixIcon:const Icon(Icons.search),hintText:'Filter timeline by year (e.g. 2024)',
+          suffixIcon:yearFilter.isEmpty?null:IconButton(tooltip:'Clear year filter',onPressed:()=>setState(()=>yearFilter=''),icon:const Icon(Icons.close)),
+          border:OutlineInputBorder(borderRadius:BorderRadius.circular(16))))))),
       if(profiles.isEmpty) SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.all(24),child:Center(child:Column(children:[Icon(Icons.family_restroom,size:52,color:cs.primary),const SizedBox(height:10),const Text('Create a profile for each daughter and choose photos to start her timeline.',textAlign:TextAlign.center),const SizedBox(height:12),FilledButton.icon(onPressed:addProfile,icon:const Icon(Icons.person_add_alt_1),label:const Text('Create profile'))])))),
-      if(person!=null&&list.isEmpty) SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.all(22),child:FilledButton.icon(onPressed:choosePhotos,icon:const Icon(Icons.add_photo_alternate),label:Text('Choose photos for $person')))),
+      if(person!=null&&list.isEmpty) SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.all(22),child:FilledButton.icon(onPressed:choosePhotos,icon:const Icon(Icons.add_photo_alternate),label:Text(yearFilter.isEmpty?'Choose photos for $person':'No memories found for this year.')))),
       for(final e in groups.entries)...[
         SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.fromLTRB(16,18,16,8),child:Row(children:[Expanded(child:Text(_label(e.key),style:const TextStyle(fontSize:19,fontWeight:FontWeight.w900))),Text('${e.value.length} memories',style:TextStyle(color:cs.onSurfaceVariant,fontSize:12))]))),
         SliverPadding(padding:const EdgeInsets.symmetric(horizontal:8),sliver:SliverGrid(delegate:SliverChildBuilderDelegate((ctx,i){final a=e.value[i];return GestureDetector(onTap:()=>widget.onOpen(a,list),child:ClipRRect(borderRadius:BorderRadius.circular(12),child:Thumb(a)));},childCount:e.value.length),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:cols,crossAxisSpacing:6,mainAxisSpacing:6,childAspectRatio:.82)))
