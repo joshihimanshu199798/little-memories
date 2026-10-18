@@ -1350,7 +1350,7 @@ class _HomeState extends State<Home> {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Your memories', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurface)),
           const SizedBox(height: 3),
-          Text('Moments worth keeping close', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          Text('Find photos. Relive moments.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ])),
         Container(
           decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, shape: BoxShape.circle),
@@ -1366,6 +1366,7 @@ class _HomeState extends State<Home> {
       {'icon': Icons.favorite_rounded, 'label': 'Favorites', 'onTap': () => setState(() { tab = 0; showAllPhotos = true; galleryFilter = 1; })},
       {'icon': Icons.collections_bookmark_rounded, 'label': 'Albums', 'onTap': () => setState(() => tab = 1)},
       {'icon': Icons.auto_awesome, 'label': 'On this day', 'onTap': _openMomentsPage},
+      {'icon': Icons.sell_outlined, 'label': 'Tagged photos', 'onTap': () => setState(() { tab = 0; showAllPhotos = true; galleryFilter = 5; })},
     ];
     return SizedBox(
       height: 92,
