@@ -4690,7 +4690,7 @@ class _GrowingMemoryTimelinePageState extends State<GrowingMemoryTimelinePage> {
         content:Text('Remove $profile and its saved photo grouping? Original photos will stay on your phone.'),
         actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Remove'))],
       ))??false;
-      if(confirm){setState(()=>{profiles.remove(profile);if(person==profile)person=null;});await save();}
+      if(confirm){setState(() { profiles.remove(profile); if(person==profile) person=null; });await save();}
     }
   }
   @override Widget build(BuildContext context) {
