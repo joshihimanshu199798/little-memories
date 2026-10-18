@@ -4726,7 +4726,7 @@ class _GrowingMemoryTimelinePageState extends State<GrowingMemoryTimelinePage> {
         onChanged:(value)=>setState(()=>yearFilter=value.trim()),
         decoration:InputDecoration(isDense:true,counterText:'',prefixIcon:const Icon(Icons.search),hintText:'Filter timeline by year (e.g. 2024)',
           suffixIcon:yearFilter.isEmpty?null:IconButton(tooltip:'Clear year filter',onPressed:()=>setState(()=>yearFilter=''),icon:const Icon(Icons.close)),
-          border:OutlineInputBorder(borderRadius:BorderRadius.circular(16))))))),
+          border:OutlineInputBorder(borderRadius:BorderRadius.circular(16)))))),
       if(profiles.isEmpty) SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.all(24),child:Center(child:Column(children:[Icon(Icons.family_restroom,size:52,color:cs.primary),const SizedBox(height:10),const Text('Create a profile for each daughter and choose photos to start her timeline.',textAlign:TextAlign.center),const SizedBox(height:12),FilledButton.icon(onPressed:addProfile,icon:const Icon(Icons.person_add_alt_1),label:const Text('Create profile'))])))),
       if(person!=null&&list.isEmpty) SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.all(22),child:FilledButton.icon(onPressed:choosePhotos,icon:const Icon(Icons.add_photo_alternate),label:Text(yearFilter.isEmpty?'Choose photos for $person':'No memories found for this year.')))),
       for(final e in groups.entries)...[
