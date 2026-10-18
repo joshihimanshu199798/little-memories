@@ -1344,19 +1344,108 @@ class _HomeState extends State<Home> {
   }
 
   Widget _experienceHeader() {
+    final cs = Theme.of(context).colorScheme;
+    final visiblePhotos = photos.where((a) => !hiddenIds.contains(a.id) && !deletedIds.contains(a.id)).length;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      child: Row(children: [
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Your memories', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurface)),
-          const SizedBox(height: 3),
-          Text('Find photos. Relive moments.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-        ])),
-        Container(
-          decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, shape: BoxShape.circle),
-          child: IconButton(onPressed: () => setState(() => tab = 2), icon: const Icon(Icons.settings_outlined), tooltip: 'Settings'),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [cs.primaryContainer, cs.secondaryContainer],
+          ),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: cs.outlineVariant.withValues(alpha: .7)),
         ),
-      ]),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: cs.onPrimaryContainer.withValues(alpha: .09),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(Icons.auto_awesome_rounded, color: cs.onPrimaryContainer, size: 26),
+                ),
+                const Spacer(),
+                IconButton(
+                  onPressed: () => setState(() => tab = 2),
+                  tooltip: 'Settings',
+                  style: IconButton.styleFrom(
+                    backgroundColor: cs.onPrimaryContainer.withValues(alpha: .08),
+                    foregroundColor: cs.onPrimaryContainer,
+                  ),
+                  icon: const Icon(Icons.tune_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Your memories, together.',
+              style: TextStyle(fontSize: 25, height: 1.08, fontWeight: FontWeight.w900, color: cs.onPrimaryContainer),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              'Find a favorite, revisit a day, or explore your photo library.',
+              style: TextStyle(fontSize: 13, height: 1.35, color: cs.onPrimaryContainer.withValues(alpha: .82)),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(child: _homeStat('Photos', visiblePhotos.toString(), Icons.photo_library_outlined, cs)),
+                const SizedBox(width: 8),
+                Expanded(child: _homeStat('Favorites', favorites.length.toString(), Icons.favorite_border_rounded, cs)),
+                const SizedBox(width: 8),
+                Expanded(child: _homeStat('Stories', timelines.length.toString(), Icons.auto_stories_outlined, cs)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: cs.onPrimaryContainer,
+                  foregroundColor: cs.primaryContainer,
+                  padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
+                ),
+                onPressed: () => setState(() { tab = 0; showAllPhotos = true; }),
+                icon: const Icon(Icons.photo_library_rounded),
+                label: const Text('Browse all photos', style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _homeStat(String label, String value, IconData icon, ColorScheme cs) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+      decoration: BoxDecoration(
+        color: cs.onPrimaryContainer.withValues(alpha: .07),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cs.onPrimaryContainer.withValues(alpha: .10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 17, color: cs.onPrimaryContainer),
+          const SizedBox(height: 7),
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: cs.onPrimaryContainer)),
+          const SizedBox(height: 2),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: cs.onPrimaryContainer.withValues(alpha: .78))),
+        ],
+      ),
     );
   }
 
