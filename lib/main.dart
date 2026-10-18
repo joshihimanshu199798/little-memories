@@ -1443,7 +1443,7 @@ class _HomeState extends State<Home> {
                 const SizedBox(height: 5),
                 Text('Choose what appears on your dashboard.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                 const SizedBox(height: 12),
-                SwitchListTile(contentPadding: EdgeInsets.zero, value: homeShowFeatured, onChanged: (v) async { setState(() => homeShowFeatured = v); setSheetState(() {}); await _save(); }, title: const Text('Featured memory'), subtitle: const Text('Show a large highlight card')),
+                SwitchListTile(contentPadding: EdgeInsets.zero, value: homeShowFeatured, onChanged: (v) async { setState(() => homeShowFeatured = v); setSheetState(() {}); await _save(); }, title: const Text('On this day'), subtitle: const Text('Show a memory from this date in an earlier year')),
                 SwitchListTile(contentPadding: EdgeInsets.zero, value: homeShowCollections, onChanged: (v) async { setState(() => homeShowCollections = v); setSheetState(() {}); await _save(); }, title: const Text('Your collections'), subtitle: const Text('Favorites, videos and camera roll')),
                 SwitchListTile(contentPadding: EdgeInsets.zero, value: homeShowRecent, onChanged: (v) async { setState(() => homeShowRecent = v); setSheetState(() {}); await _save(); }, title: const Text('Recent memories'), subtitle: const Text('Show a photo mosaic on Home')),
                 SwitchListTile(contentPadding: EdgeInsets.zero, value: homeCompact, onChanged: (v) async { setState(() => homeCompact = v); setSheetState(() {}); await _save(); }, title: const Text('Compact dashboard'), subtitle: const Text('Smaller cards to fit more memories on screen')),
@@ -1466,7 +1466,9 @@ class _HomeState extends State<Home> {
     final cs = Theme.of(context).colorScheme;
     final visible = photos.where((a) => !hiddenIds.contains(a.id) && !deletedIds.contains(a.id)).toList()
       ..sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
-    final featured = visible.isEmpty ? null : visible.first;
+    final today = DateTime.now();
+    final onThisDay = visible.where((a) => a.createDateTime.month == today.month && a.createDateTime.day == today.day && a.createDateTime.year < today.year).toList();
+    final featured = onThisDay.isEmpty ? null : onThisDay.first;
     final favoritePhotos = visible.where((a) => favorites.contains(a.id)).toList();
     final videoCount = videos.length;
     final pad = homeCompact ? 14.0 : 20.0;
@@ -1554,20 +1556,20 @@ class _HomeState extends State<Home> {
         )),
         if (homeShowFeatured && featured != null) SliverToBoxAdapter(child: Padding(
           padding: EdgeInsets.fromLTRB(pad, 12, pad, 0),
-          child: SizedBox(height: homeCompact ? 220 : 280, child: Material(
+          child: SizedBox(height: homeCompact ? 220 : 250, child: Material(
             borderRadius: BorderRadius.circular(cardRadius + 4), clipBehavior: Clip.antiAlias,
             child: InkWell(onTap: () => _openPhoto(featured, visible), child: Stack(fit: StackFit.expand, children: [
               Thumb(featured),
-              DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black.withValues(alpha: .02), Colors.black.withValues(alpha: .84)], stops: const [.25, 1]))),
-              Positioned(left: 14, top: 14, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: cs.surface.withValues(alpha: .88), borderRadius: BorderRadius.circular(30), border: Border.all(color: Colors.white.withValues(alpha: .4))), child: Text('✦  MEMORY SPOTLIGHT', style: TextStyle(color: cs.onSurface, fontSize: 9, letterSpacing: 1, fontWeight: FontWeight.w900)))),
+              DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black.withValues(alpha: .02), Colors.black.withValues(alpha: .86)], stops: const [.22, 1]))),
+              Positioned(left: 14, top: 14, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: cs.surface.withValues(alpha: .92), borderRadius: BorderRadius.circular(30), border: Border.all(color: Colors.white.withValues(alpha: .4))), child: Text('↻  ON THIS DAY', style: TextStyle(color: cs.onSurface, fontSize: 9, letterSpacing: 1, fontWeight: FontWeight.w900)))),
               Positioned(left: 15, right: 15, bottom: 15, child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(names[featured.id]?.trim().isNotEmpty == true ? names[featured.id]! : 'A moment worth keeping', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white, fontSize: homeCompact ? 22 : 27, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -.5)),
+                  Text(names[featured.id]?.trim().isNotEmpty == true ? names[featured.id]! : 'From your past', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white, fontSize: homeCompact ? 22 : 27, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -.5)),
                   const SizedBox(height: 5),
-                  Text('${featured.createDateTime.day} ${_monthName(featured.createDateTime.month)} ${featured.createDateTime.year}  ·  TAP TO RELIVE', style: const TextStyle(color: Colors.white70, fontSize: 10, letterSpacing: .5, fontWeight: FontWeight.w700)),
+                  Text('${featured.createDateTime.year} · ${today.year - featured.createDateTime.year} ${today.year - featured.createDateTime.year == 1 ? 'year' : 'years'} ago · TAP TO RELIVE', style: const TextStyle(color: Colors.white70, fontSize: 10, letterSpacing: .5, fontWeight: FontWeight.w700)),
                 ])),
                 const SizedBox(width: 10),
-                Container(width: 42, height: 42, decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: .65))), child: const Icon(Icons.arrow_outward_rounded, color: Colors.white)),
+                Container(width: 42, height: 42, decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: .65))), child: const Icon(Icons.history_rounded, color: Colors.white)),
               ])),
             ])),
           )),
