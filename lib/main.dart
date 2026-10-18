@@ -256,6 +256,10 @@ const comicThemes=<ComicTheme>[
   ComicTheme('Sage Garden','Warm paper, natural greens and calm organic surfaces','sans-serif',Color(0xFF28745B),Color(0xFFF3F6EF),Color(0xFFFFFEFA),20,1,20,7),
   ComicTheme('Sunset Film','Warm ivory surfaces with coral accents and photo-journal energy','sans-serif',Color(0xFFB84B32),Color(0xFFFFF5EF),Color(0xFFFFFFFF),16,1,18,8),
   ComicTheme('Midnight','Cinematic dark gallery with readable luminous accents','sans-serif',Color(0xFF9B91FF),Color(0xFF0D111B),Color(0xFF191F2D),18,1,20,4),
+  ComicTheme('Ocean Glass','Deep ocean blue with cool glass-like surfaces','sans-serif',Color(0xFF087E8B),Color(0xFFEAF6F8),Color(0xFFF8FEFF),24,2,24,2),
+  ComicTheme('Blossom Studio','Soft rose, plum accents and editorial cards','sans-serif',Color(0xFFB83280),Color(0xFFFFF1F7),Color(0xFFFFFFFF),22,2,24,3),
+  ComicTheme('Golden Hour','Cream paper, amber accents and warm photo journals','sans-serif',Color(0xFF9A5B13),Color(0xFFFFF7E7),Color(0xFFFFFDF7),18,1,22,6),
+  ComicTheme('Minimal Mono','Monochrome gallery with high-contrast typography','sans-serif',Color(0xFF202024),Color(0xFFF1F0EE),Color(0xFFFAF9F7),12,0,12,9),
 ];
 
 class LittleMemoriesApp extends StatefulWidget {
@@ -458,6 +462,8 @@ class _HomeState extends State<Home> {
       } else {
         photos = [];
       }
+      // Keep first paint consistent with the completed library: newest memories first.
+      photos.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
     } catch (_) {
       photos = [];
     }
@@ -547,6 +553,9 @@ class _HomeState extends State<Home> {
       final seen = <String>{};
       photos = all.where((a) => seen.add(a.id)).toList();
     }
+    // The OS album query can return a different order during background indexing.
+    // Normalize before publishing the refreshed list so old items do not jump ahead.
+    photos.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
     if (mounted) setState(() {});
   }
 
@@ -1347,105 +1356,22 @@ class _HomeState extends State<Home> {
     final cs = Theme.of(context).colorScheme;
     final visiblePhotos = photos.where((a) => !hiddenIds.contains(a.id) && !deletedIds.contains(a.id)).length;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [cs.primaryContainer, cs.secondaryContainer],
-          ),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: cs.outlineVariant.withValues(alpha: .7)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: cs.onPrimaryContainer.withValues(alpha: .09),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(Icons.auto_awesome_rounded, color: cs.onPrimaryContainer, size: 26),
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => setState(() => tab = 2),
-                  tooltip: 'Settings',
-                  style: IconButton.styleFrom(
-                    backgroundColor: cs.onPrimaryContainer.withValues(alpha: .08),
-                    foregroundColor: cs.onPrimaryContainer,
-                  ),
-                  icon: const Icon(Icons.tune_rounded),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Your memories, together.',
-              style: TextStyle(fontSize: 25, height: 1.08, fontWeight: FontWeight.w900, color: cs.onPrimaryContainer),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              'Find a favorite, revisit a day, or explore your photo library.',
-              style: TextStyle(fontSize: 13, height: 1.35, color: cs.onPrimaryContainer.withValues(alpha: .82)),
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(child: _homeStat('Photos', visiblePhotos.toString(), Icons.photo_library_outlined, cs)),
-                const SizedBox(width: 8),
-                Expanded(child: _homeStat('Favorites', favorites.length.toString(), Icons.favorite_border_rounded, cs)),
-                const SizedBox(width: 8),
-                Expanded(child: _homeStat('Stories', timelines.length.toString(), Icons.auto_stories_outlined, cs)),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: cs.onPrimaryContainer,
-                  foregroundColor: cs.primaryContainer,
-                  padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
-                ),
-                onPressed: () => setState(() { tab = 0; showAllPhotos = true; }),
-                icon: const Icon(Icons.photo_library_rounded),
-                label: const Text('Browse all photos', style: TextStyle(fontWeight: FontWeight.w800)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _homeStat(String label, String value, IconData icon, ColorScheme cs) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
-      decoration: BoxDecoration(
-        color: cs.onPrimaryContainer.withValues(alpha: .07),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cs.onPrimaryContainer.withValues(alpha: .10)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 17, color: cs.onPrimaryContainer),
-          const SizedBox(height: 7),
-          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: cs.onPrimaryContainer)),
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Little Memories', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: cs.onSurface)),
           const SizedBox(height: 2),
-          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: cs.onPrimaryContainer.withValues(alpha: .78))),
-        ],
-      ),
+          Text('$visiblePhotos photos · ${favorites.length} favorites · ${timelines.length} stories',
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+        ])),
+        IconButton(
+          onPressed: () => setState(() => tab = 2),
+          tooltip: 'Settings',
+          style: IconButton.styleFrom(backgroundColor: cs.surfaceContainerHighest, foregroundColor: cs.onSurface),
+          icon: const Icon(Icons.tune_rounded),
+        ),
+      ]),
     );
   }
 
