@@ -1369,7 +1369,7 @@ class _HomeState extends State<Home> {
       {'icon': Icons.sell_outlined, 'label': 'Tagged photos', 'onTap': () => setState(() { tab = 0; showAllPhotos = true; galleryFilter = 5; })},
     ];
     return SizedBox(
-      height: 92,
+      height: 98,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
@@ -1381,8 +1381,8 @@ class _HomeState extends State<Home> {
             borderRadius: BorderRadius.circular(18),
             onTap: a['onTap'] as VoidCallback,
             child: Container(
-              width: 142,
-              padding: const EdgeInsets.all(14),
+              width: 150,
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
@@ -1391,7 +1391,7 @@ class _HomeState extends State<Home> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Icon(a['icon'] as IconData, size: 23),
                 const Spacer(),
-                Text(a['label'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(a['label'] as String, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, height: 1.1)),
               ]),
             ),
           );
@@ -1890,7 +1890,7 @@ class _HomeState extends State<Home> {
   Widget _specialAlbumCard({required IconData icon, required String title, required String subtitle, required VoidCallback onTap}) {
     final cs = Theme.of(context).colorScheme;
     return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(22), child: Container(
-      height: 104, padding: const EdgeInsets.all(15),
+      height: 116, padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: cs.surfaceContainerLow,
         borderRadius: BorderRadius.circular(22),
@@ -1900,9 +1900,9 @@ class _HomeState extends State<Home> {
         Container(width: 44, height: 44, decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(15)), child: Icon(icon, color: cs.onPrimary)),
         const SizedBox(width: 11),
         Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+          Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, height: 1.05)),
           const SizedBox(height: 3),
-          Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10)),
+          Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10, height: 1.1)),
         ])),
       ]),
     ));
@@ -2272,12 +2272,14 @@ class _HomeState extends State<Home> {
             IconButton(tooltip: 'Add photos', onPressed: _importPhotos, icon: const Icon(Icons.add_photo_alternate_outlined)),
             PopupMenuButton<int>(tooltip: 'Grid size', initialValue: grid, onSelected: (v) async { setState(() => grid = v); await _save(); }, itemBuilder: (_) => [2,3,4,5,6,7,8].map((v) => PopupMenuItem(value: v, child: Text('$v columns'))).toList(), child: const Icon(Icons.grid_view_rounded)),
           ]))),
-          SizedBox(height: 36, child: ListView(
+          SizedBox(height: 44, child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 12), scrollDirection: Axis.horizontal,
             children: [
               for (final f in const [0, 1, 2, 3, 4, 5])
                 Padding(padding: const EdgeInsets.only(right: 6), child: ChoiceChip(
-                  label: Text(['All', 'Favorites', 'Named', 'Captions', 'In stories', 'Tagged'][f]),
+                  label: Text(['All', 'Favorites', 'Named', 'Captions', 'In stories', 'Tagged'][f], maxLines: 1, style: const TextStyle(fontSize: 12)),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   selected: galleryFilter == f,
                   onSelected: (_) async { setState(() => galleryFilter = f); await _save(); },
                 )),
