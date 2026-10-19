@@ -1708,7 +1708,7 @@ class _HomeState extends State<Home> {
   }
   Widget _featuredMemoryCard(AssetEntity featured, List<AssetEntity> all, ComicTheme t) {
     final cs = Theme.of(context).colorScheme;
-    final title = (names[featured.id] ?? '').trim().isNotEmpty ? names[featured.id]! : 'A moment worth keeping';
+    final title = (names[featured.id] ?? '').trim().isNotEmpty ? names[featured.id]! : 'On this day';
     final date = featured.createDateTime;
     return Card(clipBehavior: Clip.antiAlias, elevation: t.style == 0 ? 0 : null, child: InkWell(
       onTap: () => _openPhoto(featured, all),
