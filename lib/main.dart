@@ -1612,7 +1612,7 @@ class _HomeState extends State<Home> {
             const SizedBox(width: 10),
             collectionCard('Videos', '$videoCount moving memories', Icons.play_circle_fill_rounded, const Color(0xFF326C78), () { setState(() => tab = 1); unawaited(_refreshVideos()); }, photo: videos.isEmpty ? null : videos.first),
             const SizedBox(width: 10),
-            collectionCard('Camera roll', '${visible.length} moments', Icons.camera_alt_rounded, const Color(0xFF6152A3), () => setState(() => showAllPhotos = true), photo: featured),
+            collectionCard('Camera roll', '${visible.length} moments', Icons.camera_alt_rounded, const Color(0xFF6152A3), () => setState(() => showAllPhotos = true), photo: visible.isEmpty ? null : visible.first),
           ],
         ))),
         if (homeShowRecent) SliverToBoxAdapter(child: sectionTitle('Recent memories', 'See all', () => setState(() => showAllPhotos = true), icon: Icons.arrow_outward_rounded)),
