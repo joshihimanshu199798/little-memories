@@ -1584,9 +1584,9 @@ class _HomeState extends State<Home> {
               Row(children: [
                 Expanded(child: FilledButton.icon(onPressed: _openPeopleTimeline, icon: const Icon(Icons.family_restroom_rounded), label: const Text('Growing timeline'))),
                 const SizedBox(width: 9),
-                IconButton.filledTonal(tooltip: 'Explore gallery', onPressed: () => setState(() { showAllPhotos = true; searchQuery = ''; }), icon: const Icon(Icons.grid_view_rounded)),
-                IconButton.filledTonal(tooltip: 'Search memories', onPressed: () { setState(() => showAllPhotos = true); WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) FocusScope.of(context).requestFocus(); }); }, icon: const Icon(Icons.search_rounded)),
-                IconButton.filledTonal(tooltip: 'Select memories', onPressed: () => setState(() => selectionMode = true), icon: const Icon(Icons.checklist_rounded)),
+                IconButton.filledTonal(tooltip: 'Explore gallery', style: IconButton.styleFrom(foregroundColor: cs.onSurface, backgroundColor: cs.surfaceContainerHighest), onPressed: () => setState(() { showAllPhotos = true; searchQuery = ''; }), icon: const Icon(Icons.grid_view_rounded)),
+                IconButton.filledTonal(tooltip: 'Search memories', style: IconButton.styleFrom(foregroundColor: cs.onSurface, backgroundColor: cs.surfaceContainerHighest), onPressed: () { setState(() => showAllPhotos = true); WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) FocusScope.of(context).requestFocus(); }); }, icon: const Icon(Icons.search_rounded)),
+                IconButton.filledTonal(tooltip: 'Select memories', style: IconButton.styleFrom(foregroundColor: cs.onSurface, backgroundColor: cs.surfaceContainerHighest), onPressed: () => setState(() => selectionMode = true), icon: const Icon(Icons.checklist_rounded)),
               ]),
             ]),
           ),
