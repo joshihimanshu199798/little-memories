@@ -33,6 +33,22 @@ jobs:
             flutter create --platforms=android --project-name=little_memories .
           fi
 
+      - name: Declare Android media permissions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+          marker = '<manifest'
+          insert = '''  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+              <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>'''
+          if "android.permission.READ_MEDIA_IMAGES" not in s:
+              s = s.replace('    <application', insert + '\n    <application', 1)
+          p.write_text(s)
+          print("Android media permissions declared")
+          PY
+
       - name: Install dependencies
         run: flutter pub get
 
