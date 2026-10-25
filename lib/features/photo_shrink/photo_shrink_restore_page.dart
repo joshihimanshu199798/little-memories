@@ -46,7 +46,7 @@ class _PhotoShrinkVault {
   Future<List<_ArchiveRecord>> list() async {
     final f=await _manifest();if(!await f.exists())return <_ArchiveRecord>[];
     final d=jsonDecode(await f.readAsString()) as Map<String,dynamic>;
-    final items=(d['items'] as List<dynamic>???const []).map((e)=>_ArchiveRecord.fromJson(Map<String,dynamic>.from(e as Map))).toList();
+    final items=(d['items'] as List<dynamic>??? const <dynamic>[]).map((e)=>_ArchiveRecord.fromJson(Map<String,dynamic>.from(e as Map))).toList();
     items.sort((a,b)=>b.createdAt.compareTo(a.createdAt));return items;
   }
   Future<void> _saveManifest(List<_ArchiveRecord> items) async {
