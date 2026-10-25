@@ -46,7 +46,7 @@ class _PhotoShrinkVault {
   Future<List<_ArchiveRecord>> list() async {
     final f=await _manifest();if(!await f.exists())return <_ArchiveRecord>[];
     final d=jsonDecode(await f.readAsString()) as Map<String,dynamic>;
-    final items=(d['items'] as List<dynamic>??? const <dynamic>[]).map((e)=>_ArchiveRecord.fromJson(Map<String,dynamic>.from(e as Map))).toList();
+    final items=(d['items'] as List<dynamic>? ?? const <dynamic>[]).map((e)=>_ArchiveRecord.fromJson(Map<String,dynamic>.from(e as Map))).toList();
     items.sort((a,b)=>b.createdAt.compareTo(a.createdAt));return items;
   }
   Future<void> _saveManifest(List<_ArchiveRecord> items) async {
@@ -154,7 +154,7 @@ class _PhotoShrinkRestorePageState extends State<PhotoShrinkRestorePage> {
           label:Text(_working?'Processing $_progress…':'Archive and verify selected')),
         const SizedBox(height:26),const Text('Archived originals',style:TextStyle(fontSize:19,fontWeight:FontWeight.w900)),const SizedBox(height:8),
         if(_archives.isEmpty)const Card(child:Padding(padding:EdgeInsets.all(16),child:Text('No archives yet. Choose photos above to create your first verified archive.')))
-        else ..._archives.map((r){final saved=r.originalSize-r.archiveSize;return Card(child:ListTile(leading:const CircleAvatar(child:Icon(Icons.enhanced_encryption_outlined)),
+        else ..._archives.map((r){final saved=r.originalSize-r.archiveSize;return Card(child:ListTile(leading:const CircleAvatar(child:Icon(Icons.lock_outline)),
           title:Text(r.name,maxLines:1,overflow:TextOverflow.ellipsis),subtitle:Text('${_size(r.originalSize)} original · ${_size(r.archiveSize)} archive · ${r.codec} · ${saved>=0?'${_size(saved)} smaller':'${_size(-saved)} overhead'}'),
           trailing:IconButton(tooltip:'Restore and export',onPressed:_working?null:()=>_restore(r),icon:const Icon(Icons.restore))));}),
         const SizedBox(height:16),const Text('Cloud backup and verified deletion are not enabled yet. App uninstall or device loss can remove this local archive and its key.',style:TextStyle(fontSize:12)),
