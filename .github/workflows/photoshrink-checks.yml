@@ -1,0 +1,59 @@
+name: PhotoShrink Restore validation
+
+on:
+  push:
+    branches:
+      - feature/photo-shrink-restore
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: photoshrink-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.2"
+          channel: stable
+          cache: true
+
+      - name: Generate Android platform files if absent
+        run: |
+          if [ ! -f android/app/src/main/AndroidManifest.xml ]; then
+            flutter create --platforms=android --project-name=little_memories .
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze Dart source
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Verify APK
+        run: |
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          test -s "$APK"
+          unzip -t "$APK"
+          sha256sum "$APK"
+          ls -lh "$APK"
+
+      - name: Upload validation APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: photoshrink-restore-validation-${{ github.run_number }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
