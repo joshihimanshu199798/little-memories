@@ -4,7 +4,6 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:cryptography/cryptography.dart';
-import 'package:cross_file/cross_file.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
@@ -146,7 +145,7 @@ class _PhotoShrinkRestorePageState extends State<PhotoShrinkRestorePage> {
         if(_photos.isEmpty)const Padding(padding:EdgeInsets.all(24),child:Center(child:Text('No accessible photos found.')))
         else GridView.builder(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),itemCount:_photos.length,gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:3,crossAxisSpacing:8,mainAxisSpacing:8),
           itemBuilder:(context,i){final p=_photos[i];final yes=_selected.contains(p.id);return GestureDetector(onTap:_working?null:()=>setState(()=>yes?_selected.remove(p.id):_selected.add(p.id)),
-            child:Stack(fit:StackFit.expand,children:[ClipRRect(borderRadius:BorderRadius.circular(12),child:AssetEntityImage(p,isOriginal:false,thumbnailSize:const ThumbnailSize(240,240),fit:BoxFit.cover)),
+            child:Stack(fit:StackFit.expand,children:[ClipRRect(borderRadius:BorderRadius.circular(12),child:_PhotoShrinkThumb(p)),
               if(yes)Container(decoration:BoxDecoration(color:cs.primary.withValues(alpha:.22),borderRadius:BorderRadius.circular(12),border:Border.all(color:cs.primary,width:3))),
               Positioned(top:6,right:6,child:CircleAvatar(radius:13,backgroundColor:yes?cs.primary:Colors.black54,child:Icon(yes?Icons.check:Icons.add,color:Colors.white,size:17)))]));}),
         const SizedBox(height:12),FilledButton.icon(onPressed:_working||_selected.isEmpty?null:_archiveSelected,
@@ -160,4 +159,33 @@ class _PhotoShrinkRestorePageState extends State<PhotoShrinkRestorePage> {
         const SizedBox(height:16),const Text('Cloud backup and verified deletion are not enabled yet. App uninstall or device loss can remove this local archive and its key.',style:TextStyle(fontSize:12)),
       ])));
   }
+}
+
+class _PhotoShrinkThumb extends StatefulWidget {
+  final AssetEntity asset;
+  const _PhotoShrinkThumb(this.asset);
+  @override State<_PhotoShrinkThumb> createState() => _PhotoShrinkThumbState();
+}
+class _PhotoShrinkThumbState extends State<_PhotoShrinkThumb> {
+  Future<Uint8List?>? _future;
+  @override void initState() { super.initState(); _load(); }
+  @override void didUpdateWidget(covariant _PhotoShrinkThumb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.asset.id != widget.asset.id) _load();
+  }
+  void _load() { _future = widget.asset.thumbnailDataWithSize(const ThumbnailSize(240, 240)); }
+  @override Widget build(BuildContext context) => FutureBuilder<Uint8List?>(
+    future: _future,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return Container(color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)));
+      }
+      if (snapshot.hasError || snapshot.data == null) {
+        return Container(color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: const Center(child: Icon(Icons.broken_image_outlined)));
+      }
+      return Image.memory(snapshot.data!, fit: BoxFit.cover, gaplessPlayback: true);
+    },
+  );
 }
