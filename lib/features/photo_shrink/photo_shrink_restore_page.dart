@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'package:image/image.dart' as img;
 import 'package:share_plus/share_plus.dart';
 
 class _ArchiveRecord {
@@ -102,7 +103,7 @@ class PhotoShrinkRestorePage extends StatefulWidget {
 }
 class _PhotoShrinkRestorePageState extends State<PhotoShrinkRestorePage> {
   final _vault=_PhotoShrinkVault();final Set<String> _selected={};
-  List<AssetEntity> _photos=[];List<_ArchiveRecord> _archives=[];bool _loading=true,_working=false;int _progress=0;String? _error;
+  List<AssetEntity> _photos=[];List<_ArchiveRecord> _archives=[];List<File> _compressedFiles=[];bool _loading=true,_working=false;int _progress=0;String? _error;double _quality=75;
   @override void initState(){super.initState();_load();}
   Future<void> _load() async {
     setState((){_loading=true;_error=null;});
@@ -120,6 +121,130 @@ class _PhotoShrinkRestorePageState extends State<PhotoShrinkRestorePage> {
     final records=await _vault.list();if(!mounted)return;
     setState((){_archives=records;_selected.clear();_working=false;if(failures.isNotEmpty)_error='${failures.length} item(s) failed. ${failures.first}';});
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$ok of ${chosen.length} photos archived and verified. Originals were not deleted.')));
+  }
+  Future<void> _compressSelected() async {
+    final chosen=_photos.where((p)=>_selected.contains(p.id)).toList();
+    if(chosen.isEmpty||_working)return;
+    setState(()=>_working=true);
+    var done=0;
+    final failures=<String>[];
+    final out=<File>[];
+    try {
+      final root=await getApplicationDocumentsDirectory();
+      final dir=Directory('${root.path}/PhotoShrinkRestore/compressed');
+      await dir.create(recursive:true);
+      for(final asset in chosen) {
+        try {
+          final source=await asset.file;
+          if(source==null) throw StateError('Photo file unavailable');
+          final bytes=await source.readAsBytes();
+          final decoded=img.decodeImage(bytes);
+          if(decoded==null) throw StateError('Unsupported format (try JPEG or PNG)');
+          final encoded=img.encodeJpg(decoded,quality:_quality.round());
+          final base=(asset.title??'photo').replaceAll(RegExp(r'[^A-Za-z0-9._-]'),'_').replaceAll(RegExp(r'\.(png|jpe?g|webp)
+    if(_working)return;setState((){_working=true;_error=null;});
+    try{final path=await _vault.restore(r);if(!mounted)return;setState(()=>_working=false);
+      await Share.shareXFiles([XFile(path)],text:'Restored original photo: ${r.name}');
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Original restored and verified. Use Share to export it to your gallery or another folder.')));
+    }catch(e){if(mounted)setState((){_working=false;_error='Restore failed: $e';});}
+  }
+  String _size(int n){if(n<1024)return '$n B';if(n<1048576)return '${(n/1024).toStringAsFixed(1)} KB';if(n<1073741824)return '${(n/1048576).toStringAsFixed(2)} MB';return '${(n/1073741824).toStringAsFixed(2)} GB';}
+  @override Widget build(BuildContext context){
+    final cs=Theme.of(context).colorScheme;final original=_archives.fold<int>(0,(n,r)=>n+r.originalSize);final archive=_archives.fold<int>(0,(n,r)=>n+r.archiveSize);final delta=original-archive;
+    return Scaffold(appBar:AppBar(title:const Text('PhotoShrink Restore'),actions:[IconButton(tooltip:'Refresh',onPressed:_loading||_working?null:_load,icon:const Icon(Icons.refresh))]),
+      body:_loading?const Center(child:CircularProgressIndicator()):RefreshIndicator(onRefresh:_load,child:ListView(padding:const EdgeInsets.all(16),children:[
+        Card(child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Row(children:[Icon(Icons.shield_outlined,size:28),SizedBox(width:10),Expanded(child:Text('Exact recovery vault',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900)))]),
+          const SizedBox(height:8),const Text('Encrypt and verify original photo bytes. This first version never deletes or overwrites source photos.'),
+          const SizedBox(height:12),Wrap(spacing:8,runSpacing:8,children:[Chip(label:Text('${_archives.length} archived')),Chip(label:Text('${_size(original)} originals')),Chip(label:Text('${_size(archive)} archive data'))]),
+          Text(delta>=0?'Potential local reduction if originals were removed: ${_size(delta)}. No originals have been removed.':'Archive overhead: ${_size(-delta)}. Lossless compression may not shrink JPEG or HEIC files.',style:TextStyle(fontSize:12,color:cs.onSurfaceVariant)),
+        ]))),
+        if(_error!=null)Padding(padding:const EdgeInsets.only(bottom:10),child:Container(padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:cs.errorContainer,borderRadius:BorderRadius.circular(12)),child:Text(_error!,style:TextStyle(color:cs.onErrorContainer)))),
+        const SizedBox(height:12),Row(children:[const Expanded(child:Text('Choose photos',style:TextStyle(fontSize:19,fontWeight:FontWeight.w900))),Text('${_selected.length} selected')]),
+        const SizedBox(height:6),const Text('Select photos to create a private encrypted archive. Originals remain in the gallery.',style:TextStyle(fontSize:12)),const SizedBox(height:12),
+        if(_photos.isEmpty)const Padding(padding:EdgeInsets.all(24),child:Center(child:Text('No accessible photos found.')))
+        else GridView.builder(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),itemCount:_photos.length,gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:3,crossAxisSpacing:8,mainAxisSpacing:8),
+          itemBuilder:(context,i){final p=_photos[i];final yes=_selected.contains(p.id);return GestureDetector(onTap:_working?null:()=>setState(()=>yes?_selected.remove(p.id):_selected.add(p.id)),
+            child:Stack(fit:StackFit.expand,children:[ClipRRect(borderRadius:BorderRadius.circular(12),child:_PhotoShrinkThumb(p)),
+              if(yes)Container(decoration:BoxDecoration(color:cs.primary.withValues(alpha:.22),borderRadius:BorderRadius.circular(12),border:Border.all(color:cs.primary,width:3))),
+              Positioned(top:6,right:6,child:CircleAvatar(radius:13,backgroundColor:yes?cs.primary:Colors.black54,child:Icon(yes?Icons.check:Icons.add,color:Colors.white,size:17)))]));}),
+        const SizedBox(height:12),
+        Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Text('Compress photos',style:TextStyle(fontSize:19,fontWeight:FontWeight.w900)),
+          const SizedBox(height:4),
+          const Text('Create smaller JPEG copies. Your originals are never changed. PNG/HEIC and other unsupported formats may not decode.'),
+          Row(children:[const Text('JPEG quality'),const Spacer(),Text('${_quality.round()}%')]),
+          Slider(value:_quality,min:35,max:95,divisions:12,label:'${_quality.round()}%',onChanged:_working?null:(v)=>setState(()=>_quality=v)),
+          FilledButton.icon(onPressed:_working||_selected.isEmpty?null:_compressSelected,
+            icon:const Icon(Icons.compress),label:Text(_working?'Processing $_progress…':'Compress selected photos')),
+          if(_compressedFiles.isNotEmpty) ...[
+            const SizedBox(height:8),
+            Text('Compressed copies (${_compressedFiles.length})',style:const TextStyle(fontWeight:FontWeight.w800)),
+            ..._compressedFiles.map((f)=>ListTile(dense:true,leading:const Icon(Icons.image_outlined),title:Text(f.path.split(Platform.pathSeparator).last,maxLines:1,overflow:TextOverflow.ellipsis),
+              subtitle:Text(_size(f.lengthSync())),trailing:IconButton(tooltip:'Share compressed copy',onPressed:()=>_shareCompressed(f),icon:const Icon(Icons.share)))),
+          ],
+        ]))),
+        const SizedBox(height:12),FilledButton.icon(onPressed:_working||_selected.isEmpty?null:_archiveSelected,
+          icon:_working?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.lock_outline),
+          label:Text(_working?'Processing $_progress…':'Archive and verify selected')),
+        const SizedBox(height:26),const Text('Archived originals',style:TextStyle(fontSize:19,fontWeight:FontWeight.w900)),const SizedBox(height:8),
+        if(_archives.isEmpty)const Card(child:Padding(padding:EdgeInsets.all(16),child:Text('No archives yet. Choose photos above to create your first verified archive.')))
+        else ..._archives.map((r){final saved=r.originalSize-r.archiveSize;return Card(child:ListTile(leading:const CircleAvatar(child:Icon(Icons.lock_outline)),
+          title:Text(r.name,maxLines:1,overflow:TextOverflow.ellipsis),subtitle:Text('${_size(r.originalSize)} original · ${_size(r.archiveSize)} archive · ${r.codec} · ${saved>=0?'${_size(saved)} smaller':'${_size(-saved)} overhead'}'),
+          trailing:IconButton(tooltip:'Restore and export',onPressed:_working?null:()=>_restore(r),icon:const Icon(Icons.restore))));}),
+        const SizedBox(height:16),const Text('Cloud backup and verified deletion are not enabled yet. App uninstall or device loss can remove this local archive and its key.',style:TextStyle(fontSize:12)),
+      ])));
+  }
+}
+
+class _PhotoShrinkThumb extends StatefulWidget {
+  final AssetEntity asset;
+  const _PhotoShrinkThumb(this.asset);
+  @override State<_PhotoShrinkThumb> createState() => _PhotoShrinkThumbState();
+}
+class _PhotoShrinkThumbState extends State<_PhotoShrinkThumb> {
+  Future<Uint8List?>? _future;
+  @override void initState() { super.initState(); _load(); }
+  @override void didUpdateWidget(covariant _PhotoShrinkThumb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.asset.id != widget.asset.id) _load();
+  }
+  void _load() { _future = widget.asset.thumbnailDataWithSize(const ThumbnailSize(240, 240)); }
+  @override Widget build(BuildContext context) => FutureBuilder<Uint8List?>(
+    future: _future,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return Container(color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)));
+      }
+      if (snapshot.hasError || snapshot.data == null) {
+        return Container(color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: const Center(child: Icon(Icons.broken_image_outlined)));
+      }
+      return Image.memory(snapshot.data!, fit: BoxFit.cover, gaplessPlayback: true);
+    },
+  );
+}
+,caseSensitive:false),'');
+          final file=File('${dir.path}/${base}_compressed_q${_quality.round()}.jpg');
+          var target=file;var n=1;
+          while(await target.exists()){target=File('${dir.path}/${base}_compressed_q${_quality.round()}_$n.jpg');n++;}
+          await target.writeAsBytes(encoded,flush:true);
+          out.add(target);
+        } catch(e) { failures.add('${asset.title??asset.id}: $e'); }
+        done++;
+        if(mounted)setState(()=>_progress=done);
+      }
+      if(!mounted)return;
+      setState(()=>_compressedFiles=[...out,..._compressedFiles].take(30).toList());
+      final msg=failures.isEmpty?'Compressed ${out.length} photo(s). Originals are unchanged.':'Compressed ${out.length}; failed ${failures.length}. ${failures.first}';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(msg)));
+    } catch(e) {
+      if(mounted)setState(()=>_error='Compression failed: $e');
+    } finally { if(mounted)setState(()=>_working=false); }
+  }
+  Future<void> _shareCompressed(File file) async {
+    await Share.shareXFiles([XFile(file.path)],text:'Compressed photo from Little Memories');
   }
   Future<void> _restore(_ArchiveRecord r) async {
     if(_working)return;setState((){_working=true;_error=null;});
