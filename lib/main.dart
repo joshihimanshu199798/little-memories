@@ -23,6 +23,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'cinematic_viewer.dart';
+import 'features/studio/studio_home_screen.dart';
 
 void main() => runApp(const LittleMemoriesApp());
 
@@ -2317,7 +2318,10 @@ class _HomeState extends State<Home> {
           Expanded(child: _gallery()),
         ])
       : _dashboard();
-    final body = tab == 0 ? galleryBody : tab == 1 ? _albumsTab() : SettingsPage(
+    final visibleStudioPhotos = photos.where((a) => !hiddenIds.contains(a.id) && !deletedIds.contains(a.id)).toList();
+    final body = tab == 0 ? galleryBody : tab == 1 ? _albumsTab() : tab == 2
+      ? StudioHomeScreen(photos: visibleStudioPhotos, onEditPhoto: _openPhotoEditor)
+      : SettingsPage(
       grid: grid, dark: Theme.of(context).brightness == Brightness.dark, themeIndex: widget.themeIndex,
       onGrid: (v) { setState(() => grid = v); _save(); },
       onDark: widget.onDark, onTheme: widget.onTheme,
@@ -2333,7 +2337,7 @@ class _HomeState extends State<Home> {
     return Scaffold(
       appBar: tab == 0 && !showAllPhotos && !selectionMode ? null : AppBar(
         toolbarHeight: tab == 0 && showAllPhotos ? 44 : null,
-        title: selectionMode ? Text('${selectedIds.length} selected', style: const TextStyle(fontWeight: FontWeight.w800)) : const Text('Little Memories', style: TextStyle(fontWeight: FontWeight.w800)),
+        title: selectionMode ? Text('${selectedIds.length} selected', style: const TextStyle(fontWeight: FontWeight.w800)) : Text(tab == 2 ? 'Studio' : 'Little Memories', style: const TextStyle(fontWeight: FontWeight.w800)),
         leading: selectionMode ? IconButton(onPressed: _clearSelection, icon: const Icon(Icons.close)) : null,
         actions: selectionMode
             ? [
@@ -2392,6 +2396,7 @@ class _HomeState extends State<Home> {
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
           NavigationDestination(icon: Icon(Icons.collections_bookmark_outlined), selectedIcon: Icon(Icons.collections_bookmark), label: 'Albums'),
+          NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome), label: 'Studio'),
           NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings'),
         ],
       ))))),
