@@ -3,7 +3,7 @@ name: Build Little Memories APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, feature/studio-family-film-lab]
 
 permissions:
   contents: write
